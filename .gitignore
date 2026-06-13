@@ -3,3 +3,6 @@
 
 # SQLite database
 chat.db
+
+model_cache/*
+vector_stores/*

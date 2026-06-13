@@ -10,6 +10,7 @@ from database import (
     save_user_fact,
     get_user_facts
 )
+from rag import query_documents
 
 # Initialize a fast token estimator
 def count_tokens(text: str) -> int:
@@ -59,23 +60,28 @@ def update_summary(thread_id):
     save_summary(thread_id, new_summary)
     delete_old_messages(thread_id, keep=6)
 
-def build_context(thread_id):
+def build_context(thread_id, current_prompt=""):
     summary = get_summary(thread_id)
     recent_messages = get_recent_messages(thread_id, limit=6)
-    user_facts = get_user_facts() # Phase 4: Fetch long-term memory
+    user_facts = get_user_facts() 
+    
+    # Fetch RAG context based on the user's latest question
+    rag_chunks = query_documents(current_prompt, thread_id) if current_prompt else []
     
     history = []
     
-    # 1. Inject Long-Term Identity (Cross-Chat)
     if user_facts:
         facts_str = "\n".join([f"- {fact}" for fact in user_facts])
         history.append(SystemMessage(content=f"Important facts about the user:\n{facts_str}"))
         
-    # 2. Inject Rolling Chat Summary
     if summary:
         history.append(SystemMessage(content=f"Conversation Summary: {summary}"))
         
-    # 3. Add Recent Chat History
+    # Inject the PDF excerpts directly as system instructions
+    if rag_chunks:
+        rag_context = "\n---\n".join(rag_chunks)
+        history.append(SystemMessage(content=f"Use the following document excerpts to answer the user:\n{rag_context}"))
+        
     for role, content in recent_messages:
         if role == "user":
             history.append(HumanMessage(content=content))
