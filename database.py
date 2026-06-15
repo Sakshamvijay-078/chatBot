@@ -16,9 +16,19 @@ def init_db():
             summary TEXT
         )
     """)
+    # Phase 8: User Profiles
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS profiles (
+            username TEXT PRIMARY KEY,
+            style TEXT,
+            expertise_level TEXT
+        )
+    """)
+    # Added username to isolate chats
     cur.execute("""
         CREATE TABLE IF NOT EXISTS chats (
             thread_id TEXT PRIMARY KEY,
+            username TEXT,
             title TEXT,
             created_at TEXT
         )
@@ -32,9 +42,11 @@ def init_db():
             created_at TEXT
         )
     """)
+    # Added username to isolate memory facts
     cur.execute("""
         CREATE TABLE IF NOT EXISTS user_memory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
             fact TEXT,
             importance INTEGER,
             created_at TEXT
@@ -43,21 +55,22 @@ def init_db():
     conn.commit()
     conn.close()
 
-def create_chat(thread_id):
+def create_chat(thread_id, username):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO chats VALUES (?, ?, ?)",
-        (thread_id, "New Chat", datetime.now().isoformat())
+        "INSERT INTO chats VALUES (?, ?, ?, ?)",
+        (thread_id, username, "New Chat", datetime.now().isoformat())
     )
     conn.commit()
     conn.close()
 
-def get_chats():
+def get_chats(username):
     conn = get_connection()
     cur = conn.cursor()
     chats = cur.execute(
-        "SELECT thread_id, title FROM chats ORDER BY created_at DESC"
+        "SELECT thread_id, title FROM chats WHERE username=? ORDER BY created_at DESC",
+        (username,)
     ).fetchall()
     conn.close()
     return chats
@@ -97,7 +110,7 @@ def delete_chat(thread_id):
     cur = conn.cursor()
     cur.execute("DELETE FROM messages WHERE thread_id=?", (thread_id,))
     cur.execute("DELETE FROM chats WHERE thread_id=?", (thread_id,))
-    cur.execute("DELETE FROM summaries WHERE thread_id=?", (thread_id,)) # Also clear memory
+    cur.execute("DELETE FROM summaries WHERE thread_id=?", (thread_id,)) 
     conn.commit()
     conn.close()
 
@@ -130,7 +143,6 @@ def count_messages(thread_id):
 def get_recent_messages(thread_id, limit=6):
     conn = get_connection()
     cur = conn.cursor()
-    # Get the last N messages, then order them chronologically
     messages = cur.execute(
         """
         SELECT role, content FROM (
@@ -146,7 +158,6 @@ def get_recent_messages(thread_id, limit=6):
 def delete_old_messages(thread_id, keep=6):
     conn = get_connection()
     cur = conn.cursor()
-    # Keep the latest N messages, delete the rest
     cur.execute(
         """
         DELETE FROM messages WHERE thread_id=? AND id NOT IN (
@@ -161,24 +172,22 @@ def delete_old_messages(thread_id, keep=6):
 
 # ---------------- Phase 4: User Memory Functions ----------------
 
-def save_user_fact(fact, importance=5):
+def save_user_fact(username, fact, importance=5):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO user_memory (fact, importance, created_at) VALUES (?, ?, ?)",
-        (fact, importance, datetime.now().isoformat())
+        "INSERT INTO user_memory (username, fact, importance, created_at) VALUES (?, ?, ?, ?)",
+        (username, fact, importance, datetime.now().isoformat())
     )
     conn.commit()
     conn.close()
 
-def get_user_facts():
+def get_user_facts(username):
     conn = get_connection()
     cur = conn.cursor()
-    # Fetch facts, highest importance first
     facts = cur.execute(
-        "SELECT fact FROM user_memory ORDER BY importance DESC, created_at ASC"
+        "SELECT fact FROM user_memory WHERE username=? ORDER BY importance DESC, created_at ASC",
+        (username,)
     ).fetchall()
     conn.close()
-    
-    # Return a clean list of strings instead of tuples
     return [f[0] for f in facts]

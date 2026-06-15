@@ -13,11 +13,35 @@ init_db()
 
 st.set_page_config(page_title="AI Assistant", page_icon="🤖", layout="wide")
 
-# Initialize session state for tracking generation status
+# ---------------- Authentication Gate ----------------
+if "logged_in_user" not in st.session_state:
+    st.title("🔐 Access Terminal")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("login_form"):
+            username = st.text_input("Developer ID (Username)")
+            submit = st.form_submit_button("Initialize Workspace", use_container_width=True)
+            
+            if submit:
+                if username.strip(): 
+                    st.session_state.logged_in_user = username.strip()
+                    st.rerun()
+                else:
+                    st.error("Please enter a valid Developer ID.")
+    st.stop()
+
+# ---------------- User is Logged In ----------------
+with st.sidebar:
+    st.markdown(f"👤 **Active User:** `{st.session_state.logged_in_user}`")
+    if st.button("🚪 Logout"):
+        st.session_state.clear()
+        st.rerun()
+
 if "generating" not in st.session_state:
     st.session_state.generating = False
 
-# ---------------- Sidebar (Global Controls Only) ----------------
+# ---------------- Sidebar ----------------
 with st.sidebar:
     st.title("💬 Chats")
     
@@ -27,12 +51,12 @@ with st.sidebar:
             st.toast("You are already in an empty chat!")
         else:
             thread_id = str(uuid.uuid4())
-            create_chat(thread_id)
+            create_chat(thread_id, st.session_state.logged_in_user)
             st.session_state.current_chat = thread_id
             st.rerun()
             
     st.divider()
-    chats = get_chats()
+    chats = get_chats(st.session_state.logged_in_user)
     if chats:
         for t_id, title in chats:
             col1, col2 = st.columns([8, 2])
@@ -47,7 +71,6 @@ with st.sidebar:
                         del st.session_state["current_chat"]
                     st.rerun()
 
-    # Global Knowledge Base exclusively stays in the sidebar
     st.divider()
     st.subheader("🌐 Global Knowledge Base")
     global_file = st.file_uploader("Upload textbook / reference manual", type=["pdf"], key="global_upload")
@@ -58,12 +81,12 @@ with st.sidebar:
 
 # First Run Configuration
 if "current_chat" not in st.session_state:
-    chats = get_chats()
+    chats = get_chats(st.session_state.logged_in_user)
     if chats:
         st.session_state.current_chat = chats[0][0]
     else:
         thread_id = str(uuid.uuid4())
-        create_chat(thread_id)
+        create_chat(thread_id, st.session_state.logged_in_user)
         st.session_state.current_chat = thread_id
 
 thread_id = st.session_state.current_chat
@@ -71,19 +94,16 @@ thread_id = st.session_state.current_chat
 # ---------------- Main Chat UI ----------------
 st.title("🤖 AI Assistant")
 
-# Display historical messages
 db_messages = get_messages(thread_id)
 for role, content in db_messages:
     with st.chat_message(role):
         st.markdown(content)
 
-# Create a dedicated placeholder for streaming responses
 assistant_placeholder = st.empty()
 
-# ---------------- Bottom Control Zone ----------------
-st.write("") # Spacer
+st.write("") 
 
-# 1. Active Chat Document Uploader (Now Static in an Expander)
+# 1. Active Chat Document Uploader
 with st.expander("📎 Manage Chat Documents", expanded=False):
     chat_file = st.file_uploader("Attach a PDF to this specific chat session", type=["pdf"], key="chat_upload")
     if chat_file:
@@ -92,7 +112,7 @@ with st.expander("📎 Manage Chat Documents", expanded=False):
                 process_pdf(chat_file.read(), thread_id, is_global=False)
             st.success("Indexed successfully!")
 
-# 2. Dynamic Stop Generation Button (Appears only while generating)
+# 2. Dynamic Stop Generation Button
 stop_placeholder = st.empty()
 if st.session_state.generating:
     if stop_placeholder.button("⏹️ Stop Generation", use_container_width=True):
@@ -103,9 +123,8 @@ prompt = st.chat_input("Ask anything...", disabled=st.session_state.generating)
 
 # ---------------- Chat Execution Flow ----------------
 if prompt and not st.session_state.generating:
-    # Save user message immediately
     save_message(thread_id, "user", prompt)
-    extract_user_facts(prompt)
+    extract_user_facts(prompt, st.session_state.logged_in_user)
     
     if count_messages(thread_id) == 1:
         title = prompt[:30]
@@ -115,13 +134,10 @@ if prompt and not st.session_state.generating:
     st.session_state.stop_generation = False
     st.rerun()
 
-# Handle the active generation loop if triggered
 if st.session_state.generating and not st.session_state.get("stop_generation", False):
-    # Fetch user prompt from the latest database entry
     recent_msgs = get_messages(thread_id)
     last_user_prompt = recent_msgs[-1][1] if recent_msgs else ""
     
-    # Render the new user prompt visually
     with st.chat_message("user"):
         st.markdown(last_user_prompt)
         
@@ -129,13 +145,11 @@ if st.session_state.generating and not st.session_state.get("stop_generation", F
         placeholder = assistant_placeholder.empty()
         full_response = ""
         
-        # Build context including local/global RAG search
-        history = build_context(thread_id, current_prompt=last_user_prompt)
+        history = build_context(thread_id, st.session_state.logged_in_user, current_prompt=last_user_prompt)
         
         for chunk, metadata in workflow.stream({"messages": history}, stream_mode="messages"):
             if st.session_state.get("stop_generation", False):
                 break
-            # Only process chunks from the assistant node (not raw tool results)
             node = metadata.get("langgraph_node", "")
             if node == "assistant":
                 if hasattr(chunk, "tool_calls") and chunk.tool_calls:
@@ -147,7 +161,6 @@ if st.session_state.generating and not st.session_state.get("stop_generation", F
 
         placeholder.markdown(full_response)
         
-    # Save assistant message and reset states
     save_message(thread_id, "assistant", full_response)
     manage_memory(thread_id)
     

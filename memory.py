@@ -8,7 +8,8 @@ from database import (
     delete_old_messages, 
     get_recent_messages,
     save_user_fact,
-    get_user_facts
+    get_user_facts,
+    get_connection
 )
 from rag import query_documents
 
@@ -22,17 +23,16 @@ def count_tokens(text: str) -> int:
         return int(len(text.split()) * 1.3) 
 
 def manage_memory(thread_id, msg_limit=10, token_limit=3000):
-    """Checks both limits and triggers a summary if either is exceeded."""
     messages = get_messages(thread_id)
     if not messages:
         return
 
-    # 1. Soft Limit Check: Has the conversation gone on for too many turns?
+    # 1. Soft Limit Check
     if len(messages) >= msg_limit:
         update_summary(thread_id)
         return
 
-    # 2. Hard Limit Check: Did the user paste a massive block of text?
+    # 2. Hard Limit Check
     summary = get_summary(thread_id)
     full_text = summary + "\n".join([content for _, content in messages])
     
@@ -60,15 +60,27 @@ def update_summary(thread_id):
     save_summary(thread_id, new_summary)
     delete_old_messages(thread_id, keep=6)
 
-def build_context(thread_id, current_prompt=""):
+def build_context(thread_id, username, current_prompt=""):
     summary = get_summary(thread_id)
     recent_messages = get_recent_messages(thread_id, limit=6)
-    user_facts = get_user_facts() 
+    user_facts = get_user_facts(username) 
     
-    # Fetch RAG context based on the user's latest question
     rag_chunks = query_documents(current_prompt, thread_id) if current_prompt else []
     
     history = []
+    
+    conn = get_connection()
+    cur = conn.cursor()
+    profile = cur.execute("SELECT style, expertise_level FROM profiles WHERE username=?", (username,)).fetchone()
+    conn.close()
+
+    if profile:
+        style, expertise = profile
+        history.append(SystemMessage(
+            content=f"You are speaking with {username}. "
+                    f"Expertise level: {expertise}. "
+                    f"Strictly follow this style directive: {style}"
+        ))
     
     if user_facts:
         facts_str = "\n".join([f"- {fact}" for fact in user_facts])
@@ -77,7 +89,6 @@ def build_context(thread_id, current_prompt=""):
     if summary:
         history.append(SystemMessage(content=f"Conversation Summary: {summary}"))
         
-    # Inject the PDF excerpts directly as system instructions
     if rag_chunks:
         rag_context = "\n---\n".join(rag_chunks)
         history.append(SystemMessage(content=f"Use the following document excerpts to answer the user:\n{rag_context}"))
@@ -90,8 +101,7 @@ def build_context(thread_id, current_prompt=""):
             
     return history
 
-def extract_user_facts(user_message):
-    """Silently analyzes a message to extract permanent user facts."""
+def extract_user_facts(user_message, username):
     prompt = (
         "Analyze the following user message. If the user explicitly states a permanent "
         "or long-term fact about themselves and about you(e.g., their name, profession, tech stack, "
@@ -104,6 +114,5 @@ def extract_user_facts(user_message):
     response = llm.invoke([HumanMessage(content=prompt)])
     fact = response.content.strip()
     
-    # Only save if the LLM found a genuine fact
     if fact != "NONE" and fact != "":
-        save_user_fact(fact, importance=5)
+        save_user_fact(username, fact, importance=5)
