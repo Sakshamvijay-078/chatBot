@@ -48,15 +48,20 @@ def read_webpage(url: str) -> str:
     Use this when the user shares a URL or you need to read a specific page.
     """
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5"
+        }
         res = requests.get(url, headers=headers, timeout=15)
+        res.raise_for_status()
         soup = BeautifulSoup(res.text, "html.parser")
 
-        for tag in soup(["script", "style", "nav", "footer", "header"]):
+        for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
             tag.decompose()
 
         text = soup.get_text(separator="\n", strip=True)
-        return text[:3000] + ("..." if len(text) > 3000 else "")
+        return text[:4000] + ("..." if len(text) > 4000 else "")
     except Exception as e:
         return f"Failed to read page: {e}"
 

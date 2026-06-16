@@ -89,20 +89,29 @@ export default function MessageBubble({
                     code({ inline, className, children, ...props }) {
                       const match = /language-(\w+)/.exec(className || "");
                       return !inline && match ? (
-                        <SyntaxHighlighter
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          style={oneDark as any}
-                          language={match[1]}
-                          PreTag="div"
-                          customStyle={{
-                            margin: "8px 0",
-                            borderRadius: "10px",
-                            fontSize: "13px",
-                            background: "#0d0d10",
-                          }}
-                        >
-                          {String(children).replace(/\n$/, "")}
-                        </SyntaxHighlighter>
+                        <div className="relative group/code">
+                          <SyntaxHighlighter
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            style={oneDark as any}
+                            language={match[1]}
+                            PreTag="div"
+                            customStyle={{
+                              margin: "8px 0",
+                              borderRadius: "10px",
+                              fontSize: "13px",
+                              background: "#0d0d10",
+                            }}
+                          >
+                            {String(children).replace(/\n$/, "")}
+                          </SyntaxHighlighter>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ""))}
+                            className="absolute top-2 right-2 p-1.5 rounded-lg bg-zinc-800/80 text-zinc-400 opacity-0 group-hover/code:opacity-100 transition-opacity hover:text-white hover:bg-zinc-700"
+                            aria-label="Copy code"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       ) : (
                         <code className={className} {...props}>
                           {children}

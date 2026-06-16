@@ -1,5 +1,5 @@
-# Penda — SQL RPC Function for Atomic Token Counting
-# Run this in Supabase SQL Editor AFTER running schema.sql
+-- # Penda — SQL RPC Function for Atomic Token Counting
+-- # Run this in Supabase SQL Editor AFTER running schema.sql
 
 -- ============================================================
 -- RPC: increment_trial_tokens

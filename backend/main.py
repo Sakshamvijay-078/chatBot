@@ -183,7 +183,7 @@ class ChatRequest(BaseModel):
     message: str
     # Inline per-chat document (text extracted client-side, not stored in DB)
     doc_name: str | None = None
-    doc_content: str | None = Field(default=None, max_length=10_000)
+    doc_content: str | None = Field(default=None, max_length=5_000_000)
 
 class DocumentUploadRequest(BaseModel):
     name: str = Field(..., max_length=200)
@@ -572,7 +572,22 @@ async def stream_chat(
 
     # 1. Inline per-chat document (sent with this request, not stored in DB)
     if body.doc_content:
-        truncated = body.doc_content[:10_000]
+        content_text = body.doc_content
+        if content_text.startswith("data:application/pdf;base64,"):
+            try:
+                import base64
+                import fitz
+                b64_data = content_text.split(",", 1)[1]
+                pdf_bytes = base64.b64decode(b64_data)
+                pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                text_parts = []
+                for page in pdf_doc:
+                    text_parts.append(page.get_text())
+                content_text = "\n".join(text_parts)
+            except Exception as e:
+                content_text = f"[Failed to extract PDF text: {e}]"
+                
+        truncated = content_text[:15_000]
         doc_segments.append(
             f"[Attached Document: {body.doc_name or 'document'}]\n{truncated}"
         )

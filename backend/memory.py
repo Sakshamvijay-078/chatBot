@@ -92,7 +92,11 @@ def build_context(chat_id: str, user_id: str, llm, current_prompt: str = "") -> 
             content=(
                 f"You are Penda, an AI assistant. You are speaking with {name}. "
                 f"Expertise level: {expertise}. "
-                f"Strictly follow this style directive: {style}"
+                f"Strictly follow this style directive: {style}\n\n"
+                "IMPORTANT INSTRUCTIONS:\n"
+                "1. Focus ONLY on answering the user's MOST RECENT message.\n"
+                "2. Do NOT randomly answer or respond to older messages in the conversation history.\n"
+                "3. Do NOT use tools like web_search or read_webpage unless the user explicitly asks for current information, facts you don't know, or provides a URL. If the user asks a simple question like 'what is my name', DO NOT search the web."
             )
         ))
 

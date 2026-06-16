@@ -42,7 +42,7 @@ export default function ChatPage() {
         }}
       >
         {/* Sidebar — width is controlled internally by Framer Motion */}
-        <div style={{ flexShrink: 0, display: "flex" }}>
+        <div className="flex-shrink-0 flex h-full absolute md:relative z-20">
           <Sidebar
             chats={chats}
             activeChatId={activeChatId}
@@ -55,14 +55,8 @@ export default function ChatPage() {
 
         {/* Main content area */}
         <main
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,       /* prevents flex overflow */
-            height: "100%",
-            overflow: "hidden",
-          }}
+          className="flex-1 flex flex-col h-full min-w-0 w-full pl-[60px] md:pl-0"
+          style={{ overflow: "hidden" }}
         >
           <ChatWindow
             messages={messages}

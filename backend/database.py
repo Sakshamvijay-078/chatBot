@@ -237,7 +237,7 @@ def get_trial_usage(user_id: str) -> tuple[int, int]:
     )
     if res.data:
         return res.data["trial_tokens_used"], res.data["trial_token_limit"]
-    return 0, 50000
+    return 0, 5000
 
 
 def increment_trial_tokens(user_id: str, tokens: int) -> None:

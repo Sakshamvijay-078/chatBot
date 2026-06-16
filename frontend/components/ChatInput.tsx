@@ -6,7 +6,7 @@ import { Send, Square, Paperclip, X, FileText, AlertCircle } from "lucide-react"
 import clsx from "clsx";
 import { PendingDocument } from "@/types";
 
-const ACCEPTED_TYPES = ".txt,.md,.csv,.json,.py,.js,.ts,.tsx,.jsx,.html,.xml,.yaml,.yml";
+const ACCEPTED_TYPES = ".txt,.md,.csv,.json,.py,.js,.ts,.tsx,.jsx,.html,.xml,.yaml,.yml,.cpp,.java,.c,.h,.hpp,.cs,.php,.rb,.swift,.go,.rs,.pdf";
 const MAX_SIZE_BYTES = 500_000; // 500 KB limit
 
 interface ChatInputProps {
@@ -71,13 +71,18 @@ export default function ChatInput({ onSend, onStop, isStreaming, disabled }: Cha
 
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      if (!text) { setFileError("Could not read file."); return; }
-      setPendingDoc({ name: file.name, content: text, size: file.size });
+      const result = ev.target?.result as string;
+      if (!result) { setFileError("Could not read file."); return; }
+      setPendingDoc({ name: file.name, content: result, size: file.size });
       setFileError(null);
     };
     reader.onerror = () => setFileError("Failed to read file.");
-    reader.readAsText(file);
+    
+    if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+      reader.readAsDataURL(file);
+    } else {
+      reader.readAsText(file);
+    }
   }
 
   const canSend = (!isStreaming && !disabled) && (value.trim().length > 0 || pendingDoc !== null);
