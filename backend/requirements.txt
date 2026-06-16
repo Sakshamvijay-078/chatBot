@@ -1,0 +1,33 @@
+# Penda Backend — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# Supabase
+supabase
+
+# JWT verification
+PyJWT
+
+# LangGraph + LangChain
+langgraph
+langchain-groq
+langchain-core
+langchain-text-splitters
+
+# Memory / Token counting
+tiktoken
+
+# Tools
+requests
+beautifulsoup4
+duckduckgo-search
+ddgs
+
+# RAG (kept for future PDF upload endpoint)
+PyMuPDF
+faiss-cpu
+sentence-transformers
+numpy
