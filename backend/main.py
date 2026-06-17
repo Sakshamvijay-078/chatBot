@@ -26,7 +26,6 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from gotrue.errors import AuthApiError
 
 import auth as auth_service
 from rate_limiter import RateLimiter, validate_groq_key
@@ -257,8 +256,6 @@ def signup(body: SignUpRequest):
     try:
         result = auth_service.sign_up(body.email, body.password, body.full_name)
         return result
-    except AuthApiError as exc:
-        raise HTTPException(status_code=400, detail=str(exc.message))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -273,10 +270,6 @@ def login(body: SignInRequest):
     try:
         result = auth_service.sign_in(body.email, body.password)
         return result
-    except AuthApiError as exc:
-        # Use 401 for bad credentials, 400 for other auth errors
-        status_code = 401 if "Invalid" in str(exc.message) else 400
-        raise HTTPException(status_code=status_code, detail=str(exc.message))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -305,8 +298,6 @@ def refresh(body: RefreshRequest):
     try:
         result = auth_service.refresh_session(body.refresh_token)
         return result
-    except AuthApiError as exc:
-        raise HTTPException(status_code=401, detail=str(exc.message))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -335,8 +326,6 @@ def update_password(body: UpdatePasswordRequest):
     try:
         result = auth_service.update_password(body.access_token, body.new_password)
         return result
-    except AuthApiError as exc:
-        raise HTTPException(status_code=400, detail=str(exc.message))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

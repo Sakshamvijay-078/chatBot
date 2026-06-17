@@ -1,33 +1,51 @@
-# Penda Backend — Python Dependencies
-# Install with: pip install -r requirements.txt
-
+# =========================
+# FastAPI
+# =========================
 fastapi
 uvicorn[standard]
 python-dotenv
 
+# =========================
 # Supabase
+# =========================
 supabase
 
-# JWT verification
+# =========================
+# Authentication
+# =========================
 PyJWT
 
-# LangGraph + LangChain
+# =========================
+# LangGraph / LangChain
+# =========================
 langgraph
 langchain-groq
 langchain-core
 langchain-text-splitters
 
-# Memory / Token counting
+# =========================
+# Token Counting
+# =========================
 tiktoken
 
-# Tools
+# =========================
+# Web Search Tools
+# =========================
 requests
 beautifulsoup4
 duckduckgo-search
 ddgs
 
-# RAG (kept for future PDF upload endpoint)
+# =========================
+# RAG
+# =========================
 PyMuPDF
 faiss-cpu
 sentence-transformers
-numpy
+fitz
+
+# Pin numpy for stability
+numpy<3.0
+
+# Force CPU Torch
+torch --index-url https://download.pytorch.org/whl/cpu
