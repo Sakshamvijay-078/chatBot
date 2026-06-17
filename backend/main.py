@@ -24,7 +24,7 @@ import tiktoken
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 import auth as auth_service
@@ -119,13 +119,34 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ── CORS ────────────────────────────────────────────────────────
+# Custom echo-origin middleware instead of CORSMiddleware.
+# Reason: CORSMiddleware with allow_credentials=True requires an exact
+# origin match and returns 400 for any unrecognised origin — fragile in
+# multi-env deployments. Since the frontend uses Bearer tokens (not
+# cookies), we don't need credentialed mode; we just reflect back the
+# incoming Origin so every Vercel/localhost origin is always accepted.
+@app.middleware("http")
+async def cors_middleware(request: Request, call_next):
+    origin = request.headers.get("origin", "*")
+
+    # Handle CORS preflight immediately — never let it reach route handlers
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, X-Requested-With",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "86400",
+            },
+        )
+
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 
 # ============================================================
