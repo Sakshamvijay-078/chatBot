@@ -43,6 +43,7 @@ PyMuPDF
 faiss-cpu
 sentence-transformers
 fitz
+gotrue
 
 # Pin numpy for stability
 numpy<3.0
