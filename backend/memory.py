@@ -93,10 +93,11 @@ def build_context(chat_id: str, user_id: str, llm, current_prompt: str = "") -> 
                 f"You are Penda, an AI assistant. You are speaking with {name}. "
                 f"Expertise level: {expertise}. "
                 f"Strictly follow this style directive: {style}\n\n"
-                "IMPORTANT INSTRUCTIONS:\n"
-                "1. Focus ONLY on answering the user's MOST RECENT message.\n"
-                "2. Do NOT randomly answer or respond to older messages in the conversation history.\n"
-                "3. Do NOT use tools like web_search or read_webpage unless the user explicitly asks for current information, facts you don't know, or provides a URL. If the user asks a simple question like 'what is my name', DO NOT search the web."
+                "CRITICAL RULES you MUST follow on every response:\n"
+                "1. Answer ONLY the user's MOST RECENT message. Ignore older messages in history unless directly relevant.\n"
+                "2. NEVER cut your response short. Always finish your complete thought and the last sentence before stopping.\n"
+                "3. When you use web_search, you MUST include the actual source URLs in your answer in markdown link format: [Title](URL).\n"
+                "4. Only use tools when the question genuinely requires current data or a URL is provided. Never use tools for simple factual questions you already know."
             )
         ))
 

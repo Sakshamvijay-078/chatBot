@@ -1,8 +1,8 @@
 """
 tools.py — Penda Backend
-Unchanged from original. Provides LangChain @tool definitions:
+LangChain @tool definitions:
   - calculator
-  - web_search (DuckDuckGo)
+  - web_search (DuckDuckGo) — now includes source URLs
   - read_webpage
 """
 
@@ -28,15 +28,26 @@ def calculator(expression: str) -> str:
 
 @tool
 def web_search(query: str) -> str:
-    """Search the web using DuckDuckGo and return top results.
+    """Search the web using DuckDuckGo and return top results with their source URLs.
     Use this when you need current information or facts you don't know.
+    Always cite the URLs in your response when using this tool.
     """
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=5))
+            results = list(ddgs.text(query, max_results=6))
         if not results:
             return "No results found."
-        lines = [f"{r['title']}: {r['body']}" for r in results]
+
+        lines = []
+        for i, r in enumerate(results, 1):
+            title = r.get("title", "")
+            body  = r.get("body", "")
+            url   = r.get("href", "")          # ← DuckDuckGo returns href as the URL
+            lines.append(
+                f"[{i}] {title}\n"
+                f"URL: {url}\n"
+                f"{body}"
+            )
         return "\n\n".join(lines)
     except Exception as e:
         return f"Search failed: {e}"
@@ -49,9 +60,13 @@ def read_webpage(url: str) -> str:
     """
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/115.0.0.0 Safari/537.36"
+            ),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5"
+            "Accept-Language": "en-US,en;q=0.5",
         }
         res = requests.get(url, headers=headers, timeout=15)
         res.raise_for_status()
@@ -61,7 +76,9 @@ def read_webpage(url: str) -> str:
             tag.decompose()
 
         text = soup.get_text(separator="\n", strip=True)
-        return text[:4000] + ("..." if len(text) > 4000 else "")
+        # Return more content and include the source URL for citation
+        snippet = text[:6000] + ("..." if len(text) > 6000 else "")
+        return f"Source URL: {url}\n\n{snippet}"
     except Exception as e:
         return f"Failed to read page: {e}"
 

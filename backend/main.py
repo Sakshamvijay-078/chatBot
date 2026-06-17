@@ -17,6 +17,7 @@ Phase 2 additions:
 import os
 import json
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -630,27 +631,60 @@ async def stream_chat(
             ),
         )
 
+    # --- Append the current user message to history ---
+    # build_context() only fetches messages already saved to DB.
+    # The message was just saved above, but the DB round-trip means it may
+    # already be in recent_messages. Add it explicitly only if not present.
+    from langchain_core.messages import HumanMessage as _HM
+    if not history or not (isinstance(history[-1], _HM) and history[-1].content == user_message):
+        history.append(_HM(content=user_message))
+
     # --- Build workflow ---
     workflow = build_chat_workflow(api_key, model)
+
+    # Thread pool for running the synchronous LangGraph workflow
+    _executor = ThreadPoolExecutor(max_workers=2)
 
     async def event_generator() -> AsyncGenerator[str, None]:
         full_response = ""
         total_tokens = 0
+        last_tool_call_name: str | None = None
 
         try:
-            for chunk, metadata in workflow.stream(
-                {"messages": history}, stream_mode="messages"
-            ):
+            # Run the blocking workflow.stream() in a thread so it doesn't
+            # starve the asyncio event loop (critical on single-worker Render).
+            loop = asyncio.get_event_loop()
+
+            def _run_workflow():
+                """Collect all (chunk, metadata) pairs synchronously."""
+                return list(workflow.stream(
+                    {"messages": history}, stream_mode="messages"
+                ))
+
+            all_chunks = await loop.run_in_executor(_executor, _run_workflow)
+
+            for chunk, metadata in all_chunks:
                 node = metadata.get("langgraph_node", "")
+
+                # Only process output from the assistant node
                 if node != "assistant":
                     continue
 
+                # --- Tool call announcement ---
                 if hasattr(chunk, "tool_calls") and chunk.tool_calls:
-                    tool_name = chunk.tool_calls[0].get("name", "tool")
-                    event = json.dumps({"type": "tool_call", "tool": tool_name})
-                    yield f"data: {event}\n\n"
-                    await asyncio.sleep(0)
+                    for tc in chunk.tool_calls:
+                        # tc may be a dict or an object; guard both forms
+                        name = (
+                            tc.get("name") if isinstance(tc, dict)
+                            else getattr(tc, "name", None)
+                        )
+                        if name and name != last_tool_call_name:
+                            last_tool_call_name = name
+                            event = json.dumps({"type": "tool_call", "tool": name})
+                            yield f"data: {event}\n\n"
+                            await asyncio.sleep(0)
 
+                # --- Text token ---
                 elif chunk.content:
                     full_response += chunk.content
                     total_tokens += estimate_tokens(chunk.content)
