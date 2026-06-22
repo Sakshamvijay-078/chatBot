@@ -1,0 +1,39 @@
+# render.yaml — Penda monorepo deployment configuration
+#
+# Render reads this file to know how to build and run each service.
+# System packages listed under `packages` are installed via apt-get
+# with root access BEFORE the buildCommand runs — this is the correct
+# way to install OS-level dependencies on Render (not inside buildCommand).
+
+services:
+  - type: web
+    name: penda-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+
+    # System packages installed by Render before pip (requires root — do NOT
+    # put apt-get in buildCommand, it will fail with permission denied).
+    packages:
+      - tesseract-ocr      # required by pytesseract (§3B OCR fallback)
+      - poppler-utils      # required by pdf2image   (§3B OCR fallback)
+
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: BYOK_ENCRYPTION_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO

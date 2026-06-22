@@ -35,7 +35,6 @@ tiktoken
 requests
 beautifulsoup4
 duckduckgo-search
-ddgs
 
 # =========================
 # RAG / PDF
@@ -46,9 +45,10 @@ sentence-transformers
 gotrue
 
 # =========================
-# §3B — OCR Fallback (optional: install tesseract-ocr OS package too)
-# pip install pytesseract pdf2image
-# sudo apt-get install tesseract-ocr poppler-utils  (on Ubuntu/Render)
+# §3B — OCR Fallback for image-based PDFs
+# Requires OS packages: tesseract-ocr + poppler-utils
+# On Render: declared in render.yaml `packages` field (NOT apt-get in buildCommand)
+# On Ubuntu/Debian locally: sudo apt-get install tesseract-ocr poppler-utils
 # =========================
 pytesseract
 pdf2image
@@ -56,5 +56,5 @@ pdf2image
 # Pin numpy for stability
 numpy<3.0
 
-# Force CPU Torch
+# Force CPU Torch (avoids downloading 2GB CUDA build on Render)
 torch --index-url https://download.pytorch.org/whl/cpu
