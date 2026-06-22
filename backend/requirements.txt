@@ -35,6 +35,7 @@ tiktoken
 requests
 beautifulsoup4
 duckduckgo-search
+ddgs
 
 # =========================
 # RAG / PDF
