@@ -8,33 +8,45 @@ Production-ready RESTful API that:
   - Streams LLM responses using Server-Sent Events (SSE)
   - Persists all chat data to Supabase PostgreSQL
 
-Growth-scope improvements implemented in this revision:
-  S1C — Async LLM Integration: /chat/stream now uses LangGraph's native
-    astream() — no ThreadPoolExecutor+queue bridge needed. This eliminates
-    thread overhead and makes the entire streaming path truly async,
-    improving concurrent request handling on Render's free tier.
-  S3B — PDF OCR Fallback: _extract_pdf_text() now falls back to
-    pytesseract OCR when PyMuPDF returns no text (image-based/scanned PDFs).
-    pytesseract and pdf2image are optional; if not installed the old
-    behaviour (empty string) is preserved rather than crashing.
-  S4  — Prompt Injection Sanitization: _sanitize_web_content() strips
-    instruction-injection patterns from any external content (webpage reads,
-    global docs) before it enters the LLM context window.
-  Keep-alive: /ping endpoint returns {"alive": true} — called every 5 min
-    by the frontend so the Render free-tier instance never spins down.
+Security/reliability hardening applied in this revision:
+  - Local JWT verification via Supabase JWKS/JWT secret (was: a Supabase
+    network call on every single request)
+  - Generic error messages to clients; full exceptions only go to logs
+  - BYOK Groq keys encrypted at rest with Fernet before hitting the DB
+  - Request body size cap (413) via middleware
+  - Basic security headers on every response
+  - Shared ThreadPoolExecutor created once at startup, not per-request
+  - True streaming from the LangGraph workflow via a thread + queue
+    bridge (was: list(workflow.stream(...)), which buffered the whole
+    response in memory before sending anything)
+  - SSE loop checks for client disconnect and has a hard time limit
+  - Rate limiting added to /auth/signup, /auth/login, /auth/forgot-password
+  - PDF text extraction moved off the event loop
+  - Defensive cap on conversation history length
 
-Known limitations NOT fixable from this file alone:
-  - The trial-token check-then-increment is still not atomic.
-  - Global documents are stored as text in Postgres, not object storage.
-  - No DB connection pooling config here (lives in database.py).
-  - Heavy background work (embeddings, etc.) still runs inline.
+Known limitations NOT fixable from this file alone (need changes in
+database.py / infra, which weren't provided):
+  - The trial-token counter check-then-increment is still not atomic.
+    Two concurrent requests can both pass the check before either writes.
+    Real fix: a single atomic SQL statement in database.py, e.g.
+        UPDATE profiles SET trial_tokens_used = trial_tokens_used + %s
+        WHERE trial_tokens_used + %s <= %s RETURNING trial_tokens_used;
+  - Global documents are still stored as text in Postgres rather than
+    object storage (S3/R2/Supabase Storage) — fine at small scale, but
+    will bloat the DB/backups as usage grows.
+  - No DB connection pooling configuration here — that lives wherever
+    the Supabase client is constructed (database.py).
+  - Heavy work (ATS, embeddings, etc.) still runs inline in the request
+    instead of a background queue (Celery/RQ/Dramatiq). Acceptable for
+    an MVP's traffic level, but worth revisiting before scaling up.
 """
 
 import base64
+import functools
 import json
 import logging
 import os
-import re
+import queue
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -73,7 +85,7 @@ from database import (
     delete_document,
 )
 from memory import build_context, manage_memory, extract_user_facts
-from graph import astream_chat_workflow, build_ats_workflow, build_llm
+from graph import build_chat_workflow, build_ats_workflow, build_llm
 
 load_dotenv()
 
@@ -174,9 +186,9 @@ validate_key_limiter = RateLimiter(max_requests=10, window_seconds=60)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Executor is now only used by the ATS blocking invoke — 4 workers
-    # is ample since the async streaming path no longer needs threads.
-    app.state.executor = ThreadPoolExecutor(max_workers=4)
+    # Created once and reused for every request — not per-request, which
+    # was spawning unbounded threads under load.
+    app.state.executor = ThreadPoolExecutor(max_workers=8)
     yield
     app.state.executor.shutdown(wait=False)
 
@@ -326,63 +338,17 @@ def estimate_tokens(text: str) -> int:
 
 
 def _extract_pdf_text(pdf_bytes: bytes) -> str:
-    """Runs in the shared thread pool — keeps the event loop free.
-
-    S3B — OCR Fallback: if PyMuPDF returns no text (image-based/scanned PDF)
-    we fall back to pytesseract+pdf2image. These are optional — if not
-    installed the function returns a descriptive message rather than crashing.
-    """
+    """Runs in the shared thread pool — keeps the event loop free even
+    for large PDFs."""
     pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     try:
-        text = "\n".join(page.get_text() for page in pdf_doc)
+        return "\n".join(page.get_text() for page in pdf_doc)
     finally:
         pdf_doc.close()
-
-    if text.strip():
-        return text
-
-    # Scanned/image PDF — attempt OCR
-    try:
-        import pytesseract  # type: ignore
-        from pdf2image import convert_from_bytes  # type: ignore
-        logger.info("PDF text empty — attempting OCR fallback.")
-        images = convert_from_bytes(pdf_bytes, dpi=200)
-        ocr_text = "\n".join(pytesseract.image_to_string(img) for img in images).strip()
-        if ocr_text:
-            logger.info("OCR succeeded (%d chars).", len(ocr_text))
-            return ocr_text
-    except ImportError:
-        logger.debug("pytesseract/pdf2image not installed — OCR skipped.")
-    except Exception:
-        logger.exception("OCR fallback failed.")
-
-    return "[No extractable text found. This PDF may be an image-based scan.]"
-
-
-# S4 — Prompt injection sanitization
-# Strip common injection patterns from externally-fetched content before
-# injecting it into the LLM context window (webpages, global docs, etc.).
-_INJECTION_RE = re.compile(
-    r"(ignore (all )?(previous|prior|above|earlier) instructions?"
-    r"|disregard (all )?(previous|prior|above|earlier) instructions?"
-    r"|you are now|act as (a |an |your )?"
-    r"|system:\s*\[|\[system\]|<system>"
-    r"|new instructions?:|override:|jailbreak)",
-    re.IGNORECASE,
-)
-
-
-def _sanitize_web_content(content: str) -> str:
-    """S4 — Strip prompt injection patterns from external content."""
-    sanitized = _INJECTION_RE.sub("[REDACTED]", content)
-    if sanitized != content:
-        logger.warning("Prompt injection pattern redacted in external content.")
-    return sanitized
 
 
 def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
-
 
 
 # ============================================================
@@ -448,14 +414,6 @@ class ValidateKeyRequest(BaseModel):
 @app.get("/health", tags=["Health"])
 def health():
     return {"status": "ok", "service": "penda-api"}
-
-
-@app.get("/ping", tags=["Health"])
-def ping():
-    """Keep-alive endpoint — called by the frontend every 5 minutes to
-    prevent the Render free-tier instance from spinning down during an
-    active user session. Returns 200 with {"alive": true}."""
-    return {"alive": True}
 
 
 # ============================================================
@@ -730,7 +688,6 @@ async def stream_chat(
             try:
                 b64_data = content_text.split(",", 1)[1]
                 pdf_bytes = base64.b64decode(b64_data)
-                # Run blocking PDF/OCR extraction in the thread pool (S3B)
                 content_text = await loop.run_in_executor(executor, _extract_pdf_text, pdf_bytes)
             except Exception:
                 logger.exception("PDF extraction failed for chat %s", chat_id)
@@ -740,9 +697,7 @@ async def stream_chat(
 
     global_docs = get_global_documents(user_id)
     for doc in global_docs[:5]:
-        # S4 — sanitize externally-sourced document content before injection
-        safe_content = _sanitize_web_content(doc["content"][:5_000])
-        doc_segments.append(f"[Global Document: {doc['name']}]\n{safe_content}")
+        doc_segments.append(f"[Global Document: {doc['name']}]\n{doc['content'][:5_000]}")
 
     if doc_segments:
         history.insert(
@@ -760,19 +715,36 @@ async def stream_chat(
     ):
         history.append(HumanMessage(content=user_message))
 
-    # S1C — Native async streaming via LangGraph astream.
-    # No ThreadPoolExecutor, no queue bridge — the event loop is never blocked.
+    workflow = build_chat_workflow(api_key, model)
+
     async def event_generator() -> AsyncGenerator[str, None]:
         full_response = ""
         total_tokens = 0
         last_tool_call_name: str | None = None
-        deadline = loop.time() + STREAM_TIMEOUT_SECONDS
         timed_out = False
         client_gone = False
         error_occurred = False
 
+        chunk_queue: "queue.Queue[dict]" = queue.Queue(maxsize=256)
+
+        def _produce():
+            """Runs in the shared executor thread. Feeds chunks into the
+            queue as they arrive instead of collecting them all up front,
+            and blocks on a full queue (natural backpressure) rather than
+            buffering the entire response in memory."""
+            try:
+                for chunk, metadata in workflow.stream({"messages": history}, stream_mode="messages"):
+                    chunk_queue.put({"kind": "chunk", "chunk": chunk, "metadata": metadata})
+            except Exception as e:
+                chunk_queue.put({"kind": "error", "error": e})
+            finally:
+                chunk_queue.put({"kind": "done"})
+
+        executor.submit(_produce)
+        deadline = loop.time() + STREAM_TIMEOUT_SECONDS
+
         try:
-            async for chunk, metadata in astream_chat_workflow(api_key, model, history):
+            while True:
                 if loop.time() > deadline:
                     timed_out = True
                     yield _sse({"type": "error", "message": "Response timed out."})
@@ -782,6 +754,20 @@ async def stream_chat(
                     client_gone = True
                     break
 
+                try:
+                    item = await loop.run_in_executor(
+                        None, functools.partial(chunk_queue.get, True, 1.0)
+                    )
+                except queue.Empty:
+                    continue
+
+                kind = item["kind"]
+                if kind == "done":
+                    break
+                if kind == "error":
+                    raise item["error"]
+
+                chunk, metadata = item["chunk"], item["metadata"]
                 if metadata.get("langgraph_node") != "assistant":
                     continue
 
@@ -801,7 +787,8 @@ async def stream_chat(
             error_occurred = True
             yield _sse({"type": "error", "message": "An error occurred while generating the response."})
 
-        # Persist whatever was generated, even on disconnect/timeout
+        # Persist whatever was generated, even on disconnect/timeout —
+        # better to keep a partial reply than silently lose it.
         if full_response:
             save_message(chat_id, "assistant", full_response, token_count=total_tokens)
 
@@ -829,10 +816,9 @@ async def stream_chat(
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
+            "X-Accel-Buffering": "no",  # Disable Nginx buffering on Render
         },
     )
-
 
 
 # ============================================================

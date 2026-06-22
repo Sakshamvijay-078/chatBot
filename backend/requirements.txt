@@ -11,9 +11,10 @@ python-dotenv
 supabase
 
 # =========================
-# Authentication
+# Authentication & Encryption
 # =========================
 PyJWT
+cryptography
 
 # =========================
 # LangGraph / LangChain
@@ -37,13 +38,20 @@ duckduckgo-search
 ddgs
 
 # =========================
-# RAG
+# RAG / PDF
 # =========================
 PyMuPDF
 faiss-cpu
 sentence-transformers
-fitz
 gotrue
+
+# =========================
+# §3B — OCR Fallback (optional: install tesseract-ocr OS package too)
+# pip install pytesseract pdf2image
+# sudo apt-get install tesseract-ocr poppler-utils  (on Ubuntu/Render)
+# =========================
+pytesseract
+pdf2image
 
 # Pin numpy for stability
 numpy<3.0

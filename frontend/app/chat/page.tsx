@@ -1,27 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import SettingsModal from "@/components/SettingsModal";
-import { useChat } from "@/hooks/useChat";
+import { useAuth } from "@/context/AuthContext";
+import { useChatStore } from "@/store/chatStore";
+import { useKeepAlive } from "@/hooks/useKeepAlive";
 
 export default function ChatPage() {
-  const {
-    chats,
-    activeChatId,
-    messages,
-    streamingState,
-    error,
-    selectChat,
-    newChat,
-    deleteChat,
-    sendMessage,
-    stopStreaming,
-  } = useChat();
+  const { session } = useAuth();
+  const token = session?.access_token ?? "";
+
+  // §2C — Zustand store: each component subscribes only to what it needs.
+  const chats        = useChatStore((s) => s.chats);
+  const activeChatId = useChatStore((s) => s.activeChatId);
+  const messages     = useChatStore((s) => s.messages);
+  const streamingState = useChatStore((s) => s.streamingState);
+  const error        = useChatStore((s) => s.error);
+
+  const loadChats    = useChatStore((s) => s.loadChats);
+  const loadMessages = useChatStore((s) => s.loadMessages);
+  const selectChat   = useChatStore((s) => s.selectChat);
+  const newChat      = useChatStore((s) => s.newChat);
+  const deleteChat   = useChatStore((s) => s.deleteChat);
+  const sendMessage  = useChatStore((s) => s.sendMessage);
+  const stopStreaming = useChatStore((s) => s.stopStreaming);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Keep-alive: ping the Render backend every 5 min so it never sleeps
+  useKeepAlive(!!token);
+
+  // Bootstrap: load chats when token is available
+  useEffect(() => {
+    if (token) loadChats(token);
+  }, [token, loadChats]);
+
+  // Load messages when active chat changes
+  useEffect(() => {
+    if (token && activeChatId) loadMessages(token, activeChatId);
+  }, [token, activeChatId, loadMessages]);
+
+  // Bind token into action callbacks so ChatWindow/Sidebar don't need it
+  const handleSelectChat = (chatId: string) => selectChat(chatId);
+  const handleNewChat    = () => newChat(token);
+  const handleDeleteChat = (chatId: string) => deleteChat(token, chatId);
+  const handleSend       = (text: string, docContent?: string, docName?: string) =>
+    sendMessage(token, text, docContent, docName);
 
   return (
     <AuthGuard>
@@ -46,9 +73,9 @@ export default function ChatPage() {
           <Sidebar
             chats={chats}
             activeChatId={activeChatId}
-            onSelectChat={selectChat}
-            onNewChat={newChat}
-            onDeleteChat={deleteChat}
+            onSelectChat={handleSelectChat}
+            onNewChat={handleNewChat}
+            onDeleteChat={handleDeleteChat}
             onOpenSettings={() => setSettingsOpen(true)}
           />
         </div>
@@ -62,7 +89,7 @@ export default function ChatPage() {
             messages={messages}
             streamingState={streamingState}
             error={error}
-            onSend={sendMessage}
+            onSend={handleSend}
             onStop={stopStreaming}
           />
         </main>

@@ -168,7 +168,16 @@ export function streamChat(
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6).trim();
           if (!raw) continue;
-          try { onEvent(JSON.parse(raw) as SSEEvent); } catch { /* skip malformed */ }
+          let parsed: SSEEvent | null = null;
+          try { parsed = JSON.parse(raw) as SSEEvent; } catch { /* skip malformed */ }
+          if (!parsed) continue;
+          onEvent(parsed);
+          // §3A: Gracefully close the stream on error or done so the reader
+          // doesn't hang waiting for more data that will never arrive.
+          if (parsed.type === "error" || parsed.type === "done") {
+            reader.cancel();
+            return;
+          }
         }
       }
     } catch (err: unknown) {
