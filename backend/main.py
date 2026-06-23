@@ -227,6 +227,14 @@ def _verify_jwt(token: str) -> dict:
                 algorithms=["HS256"],
                 audience="authenticated",
             )
+        # JWKS path — only works for asymmetric Supabase projects (RS256/ES256).
+        # If your project uses HS256 (most legacy projects), set SUPABASE_JWT_SECRET.
+        if _jwk_client is None:
+            logger.error(
+                "SUPABASE_JWT_SECRET is not set and JWKS client was not initialised. "
+                "Add SUPABASE_JWT_SECRET to your environment variables."
+            )
+            raise jwt.PyJWTError("No JWT verification method configured.")
         signing_key = _jwk_client.get_signing_key_from_jwt(token)
         return jwt.decode(
             token,
@@ -242,6 +250,7 @@ def _verify_jwt(token: str) -> dict:
     except jwt.PyJWTError:
         logger.info("JWT verification failed")
         raise HTTPException(status_code=401, detail="Invalid authentication token.")
+
 
 
 def get_current_user(request: Request) -> dict:
