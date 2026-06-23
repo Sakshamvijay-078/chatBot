@@ -38,24 +38,21 @@ duckduckgo-search
 ddgs
 
 # =========================
-# RAG / PDF
+# PDF Parsing
 # =========================
 PyMuPDF
-faiss-cpu
-sentence-transformers
 gotrue
 
 # =========================
 # §3B — OCR Fallback for image-based PDFs
-# Requires OS packages: tesseract-ocr + poppler-utils
-# On Render: declared in render.yaml `packages` field (NOT apt-get in buildCommand)
-# On Ubuntu/Debian locally: sudo apt-get install tesseract-ocr poppler-utils
+# Requires OS packages declared in render.yaml:  tesseract-ocr + poppler-utils
+# Locally: sudo apt-get install tesseract-ocr poppler-utils
 # =========================
 pytesseract
 pdf2image
 
-# Pin numpy for stability
-numpy<3.0
-
-# Force CPU Torch (avoids downloading 2GB CUDA build on Render)
-torch --index-url https://download.pytorch.org/whl/cpu
+# NOTE: torch, sentence-transformers, faiss-cpu, scipy, scikit-learn, and
+# transformers have been removed. They are not imported anywhere in the
+# backend and caused a ~13-minute startup freeze on Render (torch alone
+# takes minutes to initialize). They will be re-added when the pgvector
+# RAG feature (growth_scope §1A) is implemented.
