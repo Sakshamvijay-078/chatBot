@@ -47,7 +47,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
   // Model tab
   const [models, setModels] = useState<GroqModel[]>([]);
-  const [selectedModel, setSelectedModel] = useState(profile?.preferred_model ?? "llama-3.1-8b-instant");
+  const [selectedModel, setSelectedModel] = useState(profile?.preferred_model ?? "openai/gpt-oss-20b");
   const [modelSaving, setModelSaving] = useState(false);
 
   // Documents tab
@@ -62,7 +62,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     setDisplayName(profile?.display_name ?? "");
     setStyle(profile?.style ?? "");
     setExpertise(profile?.expertise_level ?? "intermediate");
-    setSelectedModel(profile?.preferred_model ?? "llama-3.1-8b-instant");
+    setSelectedModel(profile?.preferred_model ?? "openai/gpt-oss-20b");
     setProfileMsg(null);
     setKeyValid(null);
     setKeyMsg("");

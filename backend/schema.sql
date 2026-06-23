@@ -21,11 +21,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     -- BYOK: user's own Groq API key (nullable = trial mode)
     groq_api_key  TEXT DEFAULT NULL,
     -- Preferred Groq model when using BYOK
-    preferred_model TEXT DEFAULT 'llama3-8b-8192',
+    preferred_model TEXT DEFAULT 'openai/gpt-oss-20b',
     -- Token usage counter for trial mode (resets monthly via a cron job)
     trial_tokens_used INTEGER DEFAULT 0,
     -- Max tokens allowed in trial mode before we reject the request
-    trial_token_limit INTEGER DEFAULT 50000,
+    trial_token_limit INTEGER DEFAULT 10000,
     created_at    TIMESTAMPTZ DEFAULT NOW(),
     updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
