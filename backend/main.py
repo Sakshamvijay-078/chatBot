@@ -220,36 +220,35 @@ app.add_middleware(
 
 def _verify_jwt(token: str) -> dict:
     try:
-        # Decode without verification just to log what we're receiving
-        try:
-            unverified_header = jwt.get_unverified_header(token)
-            logger.info(f"JWT Header: {unverified_header}")
-        except Exception as e:
-            logger.warning(f"Failed to get unverified header: {e}")
+        # 1. Peek at the token header to see what algorithm Supabase used
+        unverified_header = jwt.get_unverified_header(token)
+        alg = unverified_header.get("alg")
 
-        if SUPABASE_JWT_SECRET:
-            logger.info(f"Using SUPABASE_JWT_SECRET (length: {len(SUPABASE_JWT_SECRET)})")
+        # 2. HS256 (symmetric) legacy projects
+        if alg == "HS256":
+            if not SUPABASE_JWT_SECRET:
+                raise jwt.PyJWTError("Token is HS256 but SUPABASE_JWT_SECRET is not set in environment.")
             return jwt.decode(
                 token,
                 SUPABASE_JWT_SECRET,
                 algorithms=["HS256"],
                 audience="authenticated",
             )
-        # JWKS path — only works for asymmetric Supabase projects (RS256/ES256).
-        # If your project uses HS256 (most legacy projects), set SUPABASE_JWT_SECRET.
-        if _jwk_client is None:
-            logger.error(
-                "SUPABASE_JWT_SECRET is not set and JWKS client was not initialised. "
-                "Add SUPABASE_JWT_SECRET to your environment variables."
+            
+        # 3. ES256/RS256 (asymmetric) modern projects
+        elif alg in ("ES256", "RS256"):
+            if _jwk_client is None:
+                raise jwt.PyJWTError("Token is asymmetric but JWKS client failed to initialize.")
+            signing_key = _jwk_client.get_signing_key_from_jwt(token)
+            return jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["ES256", "RS256"],
+                audience="authenticated",
             )
-            raise jwt.PyJWTError("No JWT verification method configured.")
-        signing_key = _jwk_client.get_signing_key_from_jwt(token)
-        return jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["ES256", "RS256"],
-            audience="authenticated",
-        )
+            
+        else:
+            raise jwt.PyJWTError(f"Unsupported JWT algorithm: {alg}")
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=401,
