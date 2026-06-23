@@ -113,11 +113,11 @@ _fernet = Fernet(BYOK_ENCRYPTION_KEY.encode())
 # the project's JWKS endpoint. We support both so this works regardless of
 # which the Supabase project is configured for.
 SUPABASE_JWT_SECRET: str | None = os.getenv("SUPABASE_JWT_SECRET")
-_jwk_client: PyJWKClient | None = None
-if not SUPABASE_JWT_SECRET:
-    _jwk_client = PyJWKClient(
-        f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json", cache_keys=True
-    )
+
+# Always initialize JWKS client for ES256/RS256 tokens
+_jwk_client = PyJWKClient(
+    f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json", cache_keys=True
+)
 
 FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
