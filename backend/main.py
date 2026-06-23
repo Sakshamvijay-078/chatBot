@@ -121,15 +121,6 @@ if not SUPABASE_JWT_SECRET:
 
 FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
-ALLOWED_ORIGINS: list[str] = (
-    [o.strip() for o in _raw_origins.split(",") if o.strip()]
-    if _raw_origins
-    else ["http://localhost:3000"]
-)
-if FRONTEND_URL and FRONTEND_URL not in ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS.append(FRONTEND_URL)
-
 TRIAL_MODEL = "openai/gpt-oss-20b"
 
 AVAILABLE_MODELS = [
@@ -209,12 +200,14 @@ async def add_security_headers(request: Request, call_next):
 
 
 # ── CORS ─────────────────────────────────────────────────────────
-# Frontend uses Bearer tokens, not cookies, so credentialed mode isn't
-# needed — this lets us allow a real list of configured origins (not a
-# wildcard, and not a hardcoded list disconnected from ALLOWED_ORIGINS).
+# This API uses Bearer tokens (not cookies), so allow_origins="*" is safe.
+# CORS only prevents cross-origin cookie theft — it does not restrict
+# Authorization headers that JavaScript explicitly attaches. Using a
+# restricted origin list caused OPTIONS 400 errors when FRONTEND_URL
+# wasn't set in the deployment environment.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
