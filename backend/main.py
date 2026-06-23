@@ -220,7 +220,15 @@ app.add_middleware(
 
 def _verify_jwt(token: str) -> dict:
     try:
+        # Decode without verification just to log what we're receiving
+        try:
+            unverified_header = jwt.get_unverified_header(token)
+            logger.info(f"JWT Header: {unverified_header}")
+        except Exception as e:
+            logger.warning(f"Failed to get unverified header: {e}")
+
         if SUPABASE_JWT_SECRET:
+            logger.info(f"Using SUPABASE_JWT_SECRET (length: {len(SUPABASE_JWT_SECRET)})")
             return jwt.decode(
                 token,
                 SUPABASE_JWT_SECRET,
@@ -247,9 +255,9 @@ def _verify_jwt(token: str) -> dict:
             status_code=401,
             detail="Token has expired or is invalid. Please log in again.",
         )
-    except jwt.PyJWTError:
-        logger.info("JWT verification failed")
-        raise HTTPException(status_code=401, detail="Invalid authentication token.")
+    except jwt.PyJWTError as e:
+        logger.info(f"JWT verification failed: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Invalid authentication token: {str(e)}")
 
 
 
