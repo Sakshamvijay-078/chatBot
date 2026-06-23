@@ -329,7 +329,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                     exit={{ opacity: 0, x: 8 }} transition={{ duration: 0.18 }}>
                     {!profile?.has_byok && (
                       <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
-                        ⚡ Model selection requires a BYOK key. Trial mode uses <strong>Llama 3.1 8B</strong>.
+                        ⚡ Model selection requires a BYOK key. Trial mode uses <strong>GPT-OSS 20B</strong>.
                       </div>
                     )}
                     <div className="flex flex-col gap-2">
