@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import Sidebar from "@/components/Sidebar";
@@ -12,13 +12,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useChatStore } from "@/store/chatStore";
 import { useKeepAlive } from "@/hooks/useKeepAlive";
 
-/**
- * /chat — The "new chat" landing page.
- * When a user navigates here without a chatId, they get the welcome screen.
- * Upon creating or selecting a chat, we redirect to /chat/[chatId].
- */
-export default function ChatPage() {
+export default function ChatIdPage() {
+  const params = useParams();
   const router = useRouter();
+  const chatId = params?.chatId as string;
+
   const { session } = useAuth();
   const token = session?.access_token ?? "";
 
@@ -29,6 +27,7 @@ export default function ChatPage() {
   const error        = useChatStore((s) => s.error);
 
   const loadChats    = useChatStore((s) => s.loadChats);
+  const loadMessages = useChatStore((s) => s.loadMessages);
   const selectChat   = useChatStore((s) => s.selectChat);
   const newChat      = useChatStore((s) => s.newChat);
   const deleteChat   = useChatStore((s) => s.deleteChat);
@@ -37,23 +36,34 @@ export default function ChatPage() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const didMount = useRef(false);
 
   useKeepAlive(!!token);
 
-  // Bootstrap: load chats
+  // Bootstrap: load chats when token is available
   useEffect(() => {
     if (token) loadChats(token);
   }, [token, loadChats]);
 
-  // If there's already an active chat in the store, redirect to it
+  // On mount: restore chat from URL param
   useEffect(() => {
-    if (activeChatId) {
-      router.replace(`/chat/${activeChatId}`);
+    if (token && chatId && !didMount.current) {
+      didMount.current = true;
+      // Select the chat from the URL without pushing to history
+      selectChat(chatId, /* updateUrl */ false);
+      loadMessages(token, chatId);
     }
-  }, [activeChatId, router]);
+  }, [token, chatId, selectChat, loadMessages]);
+
+  // Sync: if store activeChatId changes to a different chat, navigate
+  useEffect(() => {
+    if (activeChatId && activeChatId !== chatId) {
+      router.push(`/chat/${activeChatId}`);
+    }
+  }, [activeChatId, chatId, router]);
 
   const handleSelectChat = (id: string) => {
-    selectChat(id, false);
+    selectChat(id, /* updateUrl */ false);
     router.push(`/chat/${id}`);
   };
 
@@ -64,14 +74,11 @@ export default function ChatPage() {
 
   const handleDeleteChat = async (id: string) => {
     await deleteChat(token, id);
+    if (id === chatId) router.push("/chat");
   };
 
-  // When a message is sent from the welcome screen, create a chat first
-  const handleSend = async (text: string, docContent?: string, docName?: string) => {
-    const result = await sendMessage(token, text, docContent, docName);
-    // sendMessage auto-creates a chat — the activeChatId effect above will redirect
-    return result;
-  };
+  const handleSend = (text: string, docContent?: string, docName?: string) =>
+    sendMessage(token, text, docContent, docName);
 
   return (
     <AuthGuard>
@@ -92,7 +99,7 @@ export default function ChatPage() {
             onNewChat={handleNewChat}
             onDeleteChat={handleDeleteChat}
             onOpenSettings={() => setSettingsOpen(true)}
-            onShareChat={activeChatId ? () => setShareModalOpen(true) : undefined}
+            onShareChat={() => setShareModalOpen(true)}
           />
         </div>
 
@@ -110,7 +117,10 @@ export default function ChatPage() {
         </main>
       </div>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       {shareModalOpen && activeChatId && (
         <ShareModal

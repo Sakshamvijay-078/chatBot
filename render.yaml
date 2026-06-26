@@ -35,5 +35,9 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false           # Optional — only needed for RAG/pgvector embeddings
       - key: LOG_LEVEL
         value: INFO

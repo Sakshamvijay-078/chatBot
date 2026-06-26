@@ -39,6 +39,20 @@ from database import (
     save_document,
     get_global_documents,
     delete_document,
+    # --- New in V3 ---
+    upload_file_to_storage,
+    get_file_signed_url,
+    create_shared_chat,
+    get_shared_chat_by_token,
+    get_shared_chat_messages,
+    get_shared_chat_title,
+    save_ats_candidate,
+    get_ats_candidates,
+    get_ats_candidate,
+    update_ats_candidate_status,
+    delete_ats_candidate,
+    DOCUMENTS_BUCKET,
+    ATS_BUCKET,
 )
 from memory import build_context, manage_memory, extract_user_facts
 from graph import astream_chat_workflow, build_ats_workflow, build_llm
@@ -321,6 +335,13 @@ class ATSRequest(BaseModel):
     resume_text: str = Field(..., min_length=1, max_length=50_000)
     job_description: str = Field(..., min_length=1, max_length=20_000)
 
+class ATSCandidateStatusRequest(BaseModel):
+    status: str = Field(..., pattern=r'^(pending|analyzed|rejected|shortlisted|hired)$')
+
+class ShareChatResponse(BaseModel):
+    share_token: str
+    share_url: str
+
 class UpdateTitleRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
 
@@ -498,6 +519,41 @@ def remove_chat(chat_id: str, user: dict = Depends(get_current_user)):
     delete_chat(chat_id)
     return {"success": True}
 
+
+@app.post("/chats/{chat_id}/share", tags=["Chats"], response_model=ShareChatResponse)
+def share_chat(
+    chat_id: str,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Create (or retrieve) a public share token for a chat."""
+    if get_chat_owner(chat_id) != user["sub"]:
+        raise HTTPException(status_code=403, detail="Not your chat.")
+    token = create_shared_chat(chat_id, user["sub"])
+    share_url = f"{FRONTEND_URL}/share/{token}"
+    return {"share_token": token, "share_url": share_url}
+
+
+# ============================================================
+# Routes: Public Share View (no auth required)
+# ============================================================
+
+@app.get("/share/{share_token}", tags=["Share"])
+def get_shared_chat(
+    share_token: str,
+):
+    """
+    Public endpoint — returns messages for a shared chat.
+    No authentication required; access is gated by the opaque token.
+    """
+    shared = get_shared_chat_by_token(share_token)
+    if not shared:
+        raise HTTPException(status_code=404, detail="Shared chat not found or link has expired.")
+    chat_id = shared["chat_id"]
+    messages = get_shared_chat_messages(chat_id)
+    title = get_shared_chat_title(chat_id)
+    return {"title": title, "messages": messages, "chat_id": chat_id}
+
 @app.patch("/chats/{chat_id}/title", tags=["Chats"])
 def set_chat_title(
     chat_id: str,
@@ -518,7 +574,7 @@ def get_chat_messages(chat_id: str, user: dict = Depends(get_current_user)):
 
 
 # ============================================================
-# Routes: Documents
+# Routes: Documents — now backed by Supabase Storage
 # ============================================================
 
 @app.post("/documents", tags=["Documents"])
@@ -526,16 +582,63 @@ async def upload_document(
     file: UploadFile = File(...), 
     user: dict = Depends(get_current_user)
 ):
+    """
+    Upload a document to Supabase Storage and save metadata to DB.
+    File blob is stored in Storage; only text content + metadata in PostgreSQL.
+    """
     user_id = user["sub"]
-    content = await file.read()
-    size_bytes = len(content)
+    content_bytes = await file.read()
+    size_bytes = len(content_bytes)
+    filename = file.filename or "upload"
+    mime = file.content_type or "application/octet-stream"
+
+    # Extract text for RAG + DB storage
+    content_text = ""
+    if mime == "application/pdf" or filename.lower().endswith(".pdf"):
+        try:
+            loop = asyncio.get_running_loop()
+            executor = request.app.state.executor if hasattr(request, 'app') else None
+            if executor:
+                content_text = await loop.run_in_executor(executor, _extract_pdf_text, content_bytes)
+            else:
+                content_text = _extract_pdf_text(content_bytes)
+        except Exception:
+            logger.exception("PDF extraction failed during upload")
+            content_text = "[Could not extract text from PDF]"
+    else:
+        try:
+            content_text = content_bytes.decode("utf-8", errors="replace")
+        except Exception:
+            content_text = ""
+
+    # Upload binary to Supabase Storage
+    storage_path = f"{user_id}/{filename}"
+    file_url = ""
+    try:
+        upload_file_to_storage(DOCUMENTS_BUCKET, storage_path, content_bytes, mime)
+        file_url = get_file_signed_url(DOCUMENTS_BUCKET, storage_path, expires_in=86400 * 365)
+    except Exception:
+        logger.exception("Storage upload failed for user %s", user_id)
+        # Still save the metadata even if storage fails
+        storage_path = None
+        file_url = None
+
     doc_id = save_document(
-        user_id=user_id, 
-        name=file.filename, 
-        content=content, 
-        size_bytes=size_bytes
+        user_id=user_id,
+        name=filename,
+        content=content_text,
+        size_bytes=size_bytes,
+        storage_path=storage_path,
+        mime_type=mime,
+        file_url=file_url,
     )
-    return {"id": doc_id, "name": file.filename, "size_bytes": size_bytes}
+    return {
+        "id": doc_id,
+        "name": filename,
+        "size_bytes": size_bytes,
+        "file_url": file_url,
+        "storage_path": storage_path,
+    }
 
 @app.get("/documents", tags=["Documents"])
 def list_documents(user: dict = Depends(get_current_user)):
@@ -808,3 +911,128 @@ async def run_ats_agent(
         "critique": final_state["critique"],
         "refined_bullets": final_state["refined_bullets"],
     }
+
+
+# ============================================================
+# Routes: ATS Candidates (CRUD Dashboard)
+# ============================================================
+
+@app.post("/ats/upload", tags=["ATS Agent"])
+async def ats_upload_resume(
+    request: Request,
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Upload a resume PDF to Supabase Storage, extract text, run ATS analysis,
+    and persist the candidate record.
+    """
+    ats_limiter.enforce(user["sub"])
+    user_id = user["sub"]
+    profile = get_profile(user_id)
+    api_key, model = resolve_api_key_and_model(profile)
+
+    content_bytes = await file.read()
+    filename = file.filename or "resume.pdf"
+
+    # Extract text
+    loop = asyncio.get_running_loop()
+    executor: ThreadPoolExecutor = request.app.state.executor
+    try:
+        resume_text = await loop.run_in_executor(executor, _extract_pdf_text, content_bytes)
+    except Exception:
+        logger.exception("PDF extraction failed for ATS upload")
+        raise HTTPException(status_code=422, detail="Could not extract text from PDF.")
+
+    # Upload to Supabase Storage
+    storage_path = f"{user_id}/{filename}"
+    try:
+        upload_file_to_storage(ATS_BUCKET, storage_path, content_bytes, "application/pdf")
+    except Exception:
+        logger.exception("ATS resume storage upload failed for user %s", user_id)
+        storage_path = None
+
+    return {
+        "resume_text": resume_text[:50_000],
+        "storage_path": storage_path,
+        "filename": filename,
+    }
+
+
+@app.get("/ats/candidates", tags=["ATS Agent"])
+def list_ats_candidates(user: dict = Depends(get_current_user)):
+    """List all ATS candidates for the current user."""
+    return {"candidates": get_ats_candidates(user["sub"])}
+
+
+@app.get("/ats/candidates/{candidate_id}", tags=["ATS Agent"])
+def get_ats_candidate_detail(
+    candidate_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Get full details for a specific ATS candidate."""
+    candidate = get_ats_candidate(candidate_id, user["sub"])
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found.")
+    return candidate
+
+
+@app.patch("/ats/candidates/{candidate_id}/status", tags=["ATS Agent"])
+def update_candidate_status(
+    candidate_id: str,
+    body: ATSCandidateStatusRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Update the hiring pipeline status of a candidate."""
+    candidate = get_ats_candidate(candidate_id, user["sub"])
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found.")
+    update_ats_candidate_status(candidate_id, user["sub"], body.status)
+    return {"success": True}
+
+
+@app.delete("/ats/candidates/{candidate_id}", tags=["ATS Agent"])
+def remove_ats_candidate(
+    candidate_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Delete a candidate and their resume from storage."""
+    candidate = get_ats_candidate(candidate_id, user["sub"])
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found.")
+    delete_ats_candidate(candidate_id, user["sub"])
+    return {"success": True}
+
+
+# ============================================================
+# Retry Utility
+# ============================================================
+
+async def with_retry(
+    coro_factory,
+    max_attempts: int = 5,
+    base_delay: float = 0.5,
+    label: str = "operation",
+):
+    """
+    Retry an async operation up to `max_attempts` times with exponential backoff.
+    On final failure, returns None and logs the error (does not raise).
+    For use in background/non-critical tasks.
+    """
+    last_exc = None
+    for attempt in range(max_attempts):
+        try:
+            return await coro_factory()
+        except Exception as exc:
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    "[retry] %s failed (attempt %d/%d), retrying in %.1fs: %s",
+                    label, attempt + 1, max_attempts, delay, exc,
+                )
+                await asyncio.sleep(delay)
+    logger.error(
+        "[retry] %s failed after %d attempts: %s", label, max_attempts, last_exc
+    )
+    return None

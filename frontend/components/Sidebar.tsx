@@ -4,10 +4,11 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, MessageSquare, Trash2, Settings, LogOut,
-  ChevronLeft, ChevronRight, Sparkles, Zap,
+  ChevronLeft, ChevronRight, Sparkles, Zap, Share2, Users,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Chat } from "@/types";
+import Link from "next/link";
 import clsx from "clsx";
 
 /* ── Spring presets ────────────────────────────────────────── */
@@ -24,10 +25,11 @@ interface SidebarProps {
   onNewChat: () => void;
   onDeleteChat: (id: string) => void;
   onOpenSettings: () => void;
+  onShareChat?: () => void;
 }
 
 export default function Sidebar({
-  chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, onOpenSettings,
+  chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, onOpenSettings, onShareChat,
 }: SidebarProps) {
   const { user, profile, signOut } = useAuth();
   const [collapsed,  setCollapsed]  = useState(false);
@@ -319,6 +321,47 @@ export default function Sidebar({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ATS Dashboard link */}
+        <Link href="/ats" className={clsx(
+          "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm",
+          "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 transition-colors",
+          collapsed && "justify-center px-0"
+        )}>
+          <Users className="w-4 h-4 flex-shrink-0" />
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
+                ATS Dashboard
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </Link>
+
+        {/* Share Chat button */}
+        {onShareChat && activeChatId && (
+          <motion.button
+            id="share-chat-btn"
+            onClick={onShareChat}
+            whileHover={{ x: collapsed ? 0 : 2, backgroundColor: "rgba(39,39,42,0.7)" }}
+            whileTap={{ scale: 0.96 }}
+            transition={SPRING_POP}
+            className={clsx(
+              "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm",
+              "text-zinc-400 hover:text-zinc-200 transition-colors",
+              collapsed && "justify-center px-0"
+            )}
+          >
+            <Share2 className="w-4 h-4 flex-shrink-0" />
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
+                  Share Chat
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
+        )}
 
         {/* Settings */}
         <motion.button

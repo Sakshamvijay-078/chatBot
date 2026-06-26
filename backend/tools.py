@@ -4,6 +4,8 @@ LangChain @tool definitions:
   - calculator (AST Secure)
   - web_search (DuckDuckGo with URLs)
   - read_webpage (SSRF Secure Scraper)
+  - read_file (Supabase Storage)
+  - create_file (Supabase Storage)
 """
 
 import os
@@ -15,6 +17,11 @@ import urllib.parse
 from bs4 import BeautifulSoup
 from ddgs import DDGS
 from langchain_core.tools import tool
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = (
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_SERVICE_KEY") or ""
+)
 
 # ============================================================
 # Calculator Tool Helpers (Safe AST Parsing)
@@ -138,4 +145,72 @@ def read_webpage(url: str) -> str:
         return f"Failed to read page: {e}"
 
 
-TOOLS = [calculator, web_search, read_webpage]
+@tool(
+    description=(
+        "Read the content of a file previously uploaded by the user. "
+        "The 'path' argument must be a Supabase Storage path like 'user-id/filename.txt'. "
+        "Use this when the user asks you to read, analyze, or summarize an uploaded file."
+    )
+)
+def read_file(path: str) -> str:
+    """Download and return text content of a file from Supabase Storage."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return "Error: Storage is not configured on this server."
+
+    # Sanitize the path to prevent path traversal
+    safe_path = path.lstrip("/").replace("..", "")
+    if not safe_path:
+        return "Error: Invalid file path."
+
+    try:
+        from supabase import create_client
+        client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        content_bytes = client.storage.from_("documents").download(safe_path)
+        
+        # Try decoding as text
+        try:
+            text = content_bytes.decode("utf-8", errors="replace")
+        except Exception:
+            return f"Error: File at '{safe_path}' is not a readable text file."
+        
+        # Truncate to a reasonable size for LLM context
+        snippet = text[:8000] + ("...[truncated]" if len(text) > 8000 else "")
+        return f"File: {safe_path}\n\n{snippet}"
+    except Exception as e:
+        return f"Error reading file '{safe_path}': {str(e)}"
+
+
+@tool(
+    description=(
+        "Create a new text file and save it to the user's document storage. "
+        "Provide a 'filename' (e.g., 'report.md') and 'content' (the file text). "
+        "Returns the storage path of the created file."
+    )
+)
+def create_file(filename: str, content: str, user_id: str = "ai-generated") -> str:
+    """Write text content to a new file in Supabase Storage."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return "Error: Storage is not configured on this server."
+
+    # Sanitize filename
+    safe_name = filename.lstrip("/").replace("..", "").replace("/", "_")
+    if not safe_name:
+        return "Error: Invalid filename."
+
+    storage_path = f"{user_id}/{safe_name}"
+
+    try:
+        from supabase import create_client
+        client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        content_bytes = content.encode("utf-8")
+        client.storage.from_("documents").upload(
+            storage_path,
+            content_bytes,
+            {"content-type": "text/plain", "upsert": "true"},
+        )
+        return f"File '{safe_name}' created successfully at storage path: {storage_path}"
+    except Exception as e:
+        return f"Error creating file '{safe_name}': {str(e)}"
+
+
+TOOLS = [calculator, web_search, read_webpage, read_file, create_file]

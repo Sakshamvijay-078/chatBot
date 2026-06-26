@@ -33,6 +33,9 @@ export interface Chat {
 export interface Message {
   role: "user" | "assistant" | "system";
   content: string;
+  file_url?: string;
+  file_name?: string;
+  mime_type?: string;
 }
 
 export interface Document {
@@ -41,6 +44,9 @@ export interface Document {
   size_bytes: number;
   chat_id: string | null;   // null = global
   created_at: string;
+  storage_path?: string;
+  mime_type?: string;
+  file_url?: string;
 }
 
 export interface GroqModel {
@@ -60,4 +66,37 @@ export interface PendingDocument {
   name: string;
   content: string;  // extracted plain text, client-side
   size: number;     // bytes
+  previewUrl?: string; // Object URL for image preview
+}
+
+// Share Chat
+export interface ShareChatResponse {
+  share_token: string;
+  share_url: string;
+}
+
+// ATS Candidates
+export type ATSStatus = "pending" | "analyzed" | "rejected" | "shortlisted" | "hired";
+
+export interface ATSCandidate {
+  id: string;
+  name: string | null;
+  email: string | null;
+  ats_score: number | null;
+  status: ATSStatus;
+  created_at: string;
+  missing_keywords: string[];
+}
+
+export interface ATSCandidateDetail extends ATSCandidate {
+  resume_text: string;
+  job_description: string;
+  critique: string;
+  refined_bullets: string;
+  resume_storage_path: string | null;
+}
+
+export interface ATSResult {
+  critique: string;
+  refined_bullets: string;
 }

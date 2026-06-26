@@ -21,8 +21,8 @@ interface SettingsModalProps {
 
 type Tab = "profile" | "api" | "model" | "docs";
 
-const ACCEPTED_TYPES = ".txt,.md,.csv,.json,.py,.js,.ts,.tsx,.jsx,.html,.xml,.yaml,.yml";
-const MAX_DOC_BYTES = 500_000;
+const ACCEPTED_TYPES = ".txt,.md,.csv,.json,.py,.js,.ts,.tsx,.jsx,.html,.xml,.yaml,.yml,.pdf";
+const MAX_DOC_BYTES = 10_000_000; // 10 MB — backend handles PDF extraction
 
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const { session, profile, refreshProfile } = useAuth();
@@ -139,23 +139,18 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     e.target.value = "";
 
     if (file.size > MAX_DOC_BYTES) {
-      setDocError(`File too large (max 500 KB). This file is ${(file.size / 1024).toFixed(0)} KB.`);
+      setDocError(`File too large (max ${(MAX_DOC_BYTES / 1_000_000).toFixed(0)} MB). This file is ${(file.size / 1024 / 1024).toFixed(1)} MB.`);
       return;
     }
     setDocUploading(true); setDocError(null);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const text = ev.target?.result as string;
-      if (!text) { setDocError("Could not read file."); setDocUploading(false); return; }
-      try {
-        await uploadDocument(token, file.name, text);
-        await loadDocs();
-      } catch (err: unknown) {
-        setDocError(err instanceof Error ? err.message : "Upload failed.");
-      } finally { setDocUploading(false); }
-    };
-    reader.onerror = () => { setDocError("Failed to read file."); setDocUploading(false); };
-    reader.readAsText(file);
+    try {
+      // New API: send raw File object — backend uploads to Supabase Storage
+      // and extracts text (including PDF OCR) server-side
+      await uploadDocument(token, file);
+      await loadDocs();
+    } catch (err: unknown) {
+      setDocError(err instanceof Error ? err.message : "Upload failed.");
+    } finally { setDocUploading(false); }
   }
 
   async function handleDeleteDoc(docId: string) {
@@ -395,7 +390,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                       }
                     </button>
                     <p className="text-xs text-zinc-600 -mt-2 text-center">
-                      Supports: .txt .md .csv .json .py .js .ts .html .yaml
+                      Supports: .txt .md .csv .json .py .js .ts .html .yaml .pdf · max 10 MB
                     </p>
 
                     {/* Error */}

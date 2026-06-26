@@ -6,7 +6,7 @@ import { Sparkles, Zap, Globe, Calculator, FileText } from "lucide-react";
 import MessageBubble from "@/components/MessageBubble";
 import ChatInput from "@/components/ChatInput";
 import { Message } from "@/types";
-import { StreamingState } from "@/hooks/useChat";
+import { StreamingState } from "@/store/chatStore";
 
 /* ── Spring presets ────────────────────────────────────────── */
 const SPRING_ENTER  = { type: "spring" as const, stiffness: 260, damping: 22, mass: 0.9 };

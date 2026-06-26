@@ -9,6 +9,8 @@ python-dotenv
 # Supabase
 # =========================
 supabase
+python-multipart       # Required by FastAPI for UploadFile / Form handling
+openai                 # For text-embedding-3-small embeddings (RAG / pgvector)
 
 # =========================
 # Authentication & Encryption

@@ -1,12 +1,8 @@
 /**
  * chatStore.ts — Penda Frontend
  *
- * Growth-scope §2C — State Management: Migrates complex React state from
- * useChat.ts to Zustand. Benefits:
- *   - No unnecessary re-renders: components subscribe only to the slices they
- *     need (e.g. Sidebar only reads chats, not messages).
- *   - Global, singleton store — no prop-drilling through ChatWindow → ChatInput.
- *   - Built-in devtools support via zustand/middleware.
+ * Zustand state management for chat sessions.
+ * selectChat now accepts an optional `updateUrl` param for URL sync.
  */
 
 import { create } from "zustand";
@@ -39,7 +35,8 @@ interface ChatStore {
   // ── Actions ──────────────────────────────────────────────────
   loadChats: (token: string) => Promise<void>;
   loadMessages: (token: string, chatId: string) => Promise<void>;
-  selectChat: (chatId: string) => void;
+  /** updateUrl = true (default) pushes route; false = internal only (used by [chatId] page) */
+  selectChat: (chatId: string, updateUrl?: boolean) => void;
   newChat: (token: string) => Promise<string | null>;
   deleteChat: (token: string, chatId: string) => Promise<void>;
   sendMessage: (
@@ -83,7 +80,9 @@ export const useChatStore = create<ChatStore>()(
       },
 
       // ── selectChat ──────────────────────────────────────────
-      selectChat: (chatId) => {
+      // updateUrl is only used externally (by page components)
+      // The store itself only manages the active chat ID state.
+      selectChat: (chatId, _updateUrl = true) => {
         get()._cancelStream?.();
         set({ activeChatId: chatId, error: null, _cancelStream: null }, false, "selectChat");
       },
