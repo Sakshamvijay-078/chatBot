@@ -56,3 +56,6 @@ pdf2image
 # backend and caused a ~13-minute startup freeze on Render (torch alone
 # takes minutes to initialize). They will be re-added when the pgvector
 # RAG feature (growth_scope §1A) is implemented.
+
+# # libraries added during debug 
+# redis # for rate limit (centralized) 

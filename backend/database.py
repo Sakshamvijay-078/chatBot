@@ -1,18 +1,11 @@
-"""
-database.py — Penda Backend
-Supabase PostgreSQL replacement for the original SQLite database.py.
-All functions accept user_id (UUID string from Supabase Auth JWT) instead of username.
-"""
-
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
 
 SUPABASE_URL: str = os.environ["SUPABASE_URL"]
-# Accept both naming conventions so Render env vars work regardless of which name was set
 SUPABASE_SERVICE_KEY: str = (
     os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     or os.environ.get("SUPABASE_SERVICE_KEY")
@@ -24,20 +17,16 @@ if not SUPABASE_SERVICE_KEY:
         "Set SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY) in your Render environment variables."
     )
 
-# Use the SERVICE ROLE key on the backend so RLS policies don't block
-# server-side operations. This key must NEVER be exposed to the frontend.
 _supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
 def get_client() -> Client:
-    """Return the shared Supabase service-role client."""
     return _supabase
 
 
 # ============================================================
 # Profile
 # ============================================================
-
 def get_profile(user_id: str) -> dict | None:
     res = (
         _supabase.table("profiles")
@@ -48,10 +37,8 @@ def get_profile(user_id: str) -> dict | None:
     )
     return res.data
 
-
 def update_profile(user_id: str, **fields) -> dict:
-    """Update arbitrary profile fields. Returns the updated row."""
-    fields["updated_at"] = datetime.utcnow().isoformat()
+    fields["updated_at"] = datetime.now(timezone.utc).isoformat()
     res = (
         _supabase.table("profiles")
         .update(fields)
@@ -88,7 +75,10 @@ def get_chats(user_id: str) -> list[dict]:
 
 
 def update_title(chat_id: str, title: str) -> None:
-    _supabase.table("chats").update({"title": title, "updated_at": datetime.utcnow().isoformat()}).eq("id", chat_id).execute()
+    _supabase.table("chats").update({
+        "title": title, 
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }).eq("id", chat_id).execute()
 
 
 def delete_chat(chat_id: str) -> None:
@@ -141,8 +131,6 @@ def get_messages(chat_id: str) -> list[dict]:
 
 def get_recent_messages(chat_id: str, limit: int = 6) -> list[dict]:
     """Return the most recent `limit` messages in ascending order."""
-    # Supabase doesn't support LIMIT on DESC + re-order in one query easily,
-    # so we fetch DESC limited and reverse in Python.
     res = (
         _supabase.table("messages")
         .select("role, content")
@@ -174,14 +162,19 @@ def delete_old_messages(chat_id: str, keep: int = 6) -> None:
         .limit(keep)
         .execute()
     )
+    
     keep_ids = [row["id"] for row in (res.data or [])]
     if not keep_ids:
         return
+        
+    # FIXED: Convert each integer ID to a string during the join
+    formatted_ids = f"({','.join(str(i) for i in keep_ids)})"
+    
     (
         _supabase.table("messages")
         .delete()
         .eq("chat_id", chat_id)
-        .not_.in_("id", keep_ids)
+        .not_("id", "in", formatted_ids) 
         .execute()
     )
 
@@ -201,11 +194,10 @@ def get_summary(chat_id: str) -> str:
 
 
 def save_summary(chat_id: str, summary: str) -> None:
-    # Upsert: insert or update if chat_id already exists
     _supabase.table("summaries").upsert({
         "chat_id": chat_id,
         "summary": summary,
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }).execute()
 
 
@@ -252,7 +244,6 @@ def get_trial_usage(user_id: str) -> tuple[int, int]:
 
 def increment_trial_tokens(user_id: str, tokens: int) -> None:
     """Atomically add `tokens` to the user's trial_tokens_used counter."""
-    # Supabase RPC call to avoid race conditions
     _supabase.rpc("increment_trial_tokens", {"uid": user_id, "amount": tokens}).execute()
 
 
@@ -260,8 +251,8 @@ def increment_trial_tokens(user_id: str, tokens: int) -> None:
 # Documents (global attachments)
 # ============================================================
 
-MAX_DOC_CHARS = 12_000   # hard cap per document stored in DB
-MAX_DOCS_PER_USER = 10   # prevent abuse
+MAX_DOC_CHARS = 12_000   
+MAX_DOCS_PER_USER = 10   
 
 def save_document(user_id: str, name: str, content: str, size_bytes: int) -> str:
     """Persist a global document and return its UUID."""
@@ -273,7 +264,7 @@ def save_document(user_id: str, name: str, content: str, size_bytes: int) -> str
             "name": name,
             "content": content,
             "size_bytes": size_bytes,
-            "chat_id": None,   # NULL = global
+            "chat_id": None,   
         })
         .execute()
     )
@@ -284,9 +275,9 @@ def get_global_documents(user_id: str) -> list[dict]:
     """Return all global documents for a user (chat_id IS NULL), newest first."""
     res = (
         _supabase.table("documents")
-        .select("id, name, content, size_bytes, created_at")
+        .select("id, name, size_bytes, created_at")
         .eq("user_id", user_id)
-        .is_("chat_id", "null")
+        .is_("chat_id", None)
         .order("created_at", desc=True)
         .limit(MAX_DOCS_PER_USER)
         .execute()
@@ -297,4 +288,3 @@ def get_global_documents(user_id: str) -> list[dict]:
 def delete_document(doc_id: str, user_id: str) -> None:
     """Delete a document — user_id guard prevents cross-user deletion."""
     _supabase.table("documents").delete().eq("id", doc_id).eq("user_id", user_id).execute()
-

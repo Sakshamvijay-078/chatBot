@@ -1,37 +1,79 @@
 """
 tools.py — Penda Backend
 LangChain @tool definitions:
-  - calculator
-  - web_search (DuckDuckGo) — now includes source URLs
-  - read_webpage
+  - calculator (AST Secure)
+  - web_search (DuckDuckGo with URLs)
+  - read_webpage (SSRF Secure Scraper)
 """
 
+import os
+import ast
+import math
+import operator
 import requests
+import urllib.parse
 from bs4 import BeautifulSoup
 from ddgs import DDGS
 from langchain_core.tools import tool
 
+# ============================================================
+# Calculator Tool Helpers (Safe AST Parsing)
+# ============================================================
 
-@tool
+_ALLOWED_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Pow: operator.pow,
+    ast.Mod: operator.mod,
+    ast.USub: operator.neg,  
+    ast.UAdd: operator.pos,
+}
+
+_ALLOWED_MATH_FUNCS = {k: getattr(math, k) for k in dir(math) if not k.startswith("_")}
+
+def _evaluate_ast(node):
+    """Recursively evaluate the AST safely."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+        
+    elif isinstance(node, ast.UnaryOp):
+        op_func = _ALLOWED_OPERATORS.get(type(node.op))
+        if op_func:
+            return op_func(_evaluate_ast(node.operand))
+            
+    elif isinstance(node, ast.BinOp):
+        op_func = _ALLOWED_OPERATORS.get(type(node.op))
+        if op_func:
+            return op_func(_evaluate_ast(node.left), _evaluate_ast(node.right))
+            
+    elif isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Name) and node.func.id in _ALLOWED_MATH_FUNCS:
+            math_func = _ALLOWED_MATH_FUNCS[node.func.id]
+            args = [_evaluate_ast(arg) for arg in node.args]
+            return math_func(*args)
+
+    raise ValueError("Unsafe or unsupported mathematical operation")
+
+
+# ============================================================
+# Secure Tool Definitions
+# ============================================================
+
+@tool(description="Evaluate a mathematical expression. Input must be a valid Python math expression. Examples: '2 + 2', '(10 * 3) / 5', 'sqrt(144)'.")
 def calculator(expression: str) -> str:
-    """Evaluate a mathematical expression. Input must be a valid Python math expression.
-    Examples: '2 + 2', '(10 * 3) / 5', '2 ** 8', 'sqrt(144)' (use math functions).
-    """
-    import math
     try:
-        allowed = {k: getattr(math, k) for k in dir(math) if not k.startswith("_")}
-        result = eval(expression, {"__builtins__": {}}, allowed)
+        tree = ast.parse(expression, mode='eval').body
+        result = _evaluate_ast(tree)
         return str(result)
-    except Exception as e:
-        return f"Error: {e}"
+    except Exception:
+        return "Error: Not able to calculate. Invalid syntax or operation."
 
 
-@tool
+@tool(description="Search the web using DuckDuckGo and return top results with their source URLs. Use this when you need current information or facts you don't know.")
 def web_search(query: str) -> str:
-    """Search the web using DuckDuckGo and return top results with their source URLs.
-    Use this when you need current information or facts you don't know.
-    Always cite the URLs in your response when using this tool.
-    """
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=6))
@@ -42,7 +84,7 @@ def web_search(query: str) -> str:
         for i, r in enumerate(results, 1):
             title = r.get("title", "")
             body  = r.get("body", "")
-            url   = r.get("href", "")          # ← DuckDuckGo returns href as the URL
+            url   = r.get("href", "")  
             lines.append(
                 f"[{i}] {title}\n"
                 f"URL: {url}\n"
@@ -53,11 +95,25 @@ def web_search(query: str) -> str:
         return f"Search failed: {e}"
 
 
-@tool
+def is_safe_url(url: str) -> bool:
+    """Check if URL targets internal network blocks to prevent SSRF attacks."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+        blocked_hostnames = ["localhost", "127.0.0.1", "169.254.169.254", "0.0.0.0"]
+        if parsed.hostname in blocked_hostnames:
+            return False
+        if parsed.scheme not in ["http", "https"]:
+            return False
+        return True
+    except Exception:
+        return False
+
+
+@tool(description="Fetch and read the text content of a web page given its URL. Use this when the user shares a specific URL link.")
 def read_webpage(url: str) -> str:
-    """Fetch and read the text content of a web page given its URL.
-    Use this when the user shares a URL or you need to read a specific page.
-    """
+    if not is_safe_url(url):
+        return "Security Error: Blocked attempt to access internal or unsafe network resource."
+        
     try:
         headers = {
             "User-Agent": (
@@ -76,7 +132,6 @@ def read_webpage(url: str) -> str:
             tag.decompose()
 
         text = soup.get_text(separator="\n", strip=True)
-        # Return more content and include the source URL for citation
         snippet = text[:6000] + ("..." if len(text) > 6000 else "")
         return f"Source URL: {url}\n\n{snippet}"
     except Exception as e:
