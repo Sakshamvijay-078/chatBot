@@ -6,12 +6,10 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Message } from "@/types";
-import { Sparkles, User, Copy, Check, Wrench } from "lucide-react";
-import { useState } from "react";
+import { Copy, Check, Wrench, FileText, Eye, Download, RefreshCw } from "lucide-react";
+import { useState, useCallback } from "react";
 
-/* ── Spring presets ────────────────────────────────────────── */
-const SPRING_ENTER = { type: "spring" as const, stiffness: 260, damping: 22, mass: 0.9 };
-const SPRING_POP   = { type: "spring" as const, stiffness: 320, damping: 20, mass: 0.8 };
+const SPRING_POP = { type: "spring" as const, stiffness: 340, damping: 22, mass: 0.8 };
 
 interface MessageBubbleProps {
   message: Message;
@@ -19,283 +17,246 @@ interface MessageBubbleProps {
   activeTool?: string | null;
 }
 
-// ── Inline code copy button with animated check ────────────
+/* ── Code block copy button ─────────────────────────── */
 function CopyCodeButton({ code }: { code: string }) {
   const [done, setDone] = useState(false);
-
   function copy() {
     navigator.clipboard.writeText(code);
     setDone(true);
     setTimeout(() => setDone(false), 1800);
   }
-
   return (
-    <motion.button
+    <button
       onClick={copy}
-      whileTap={{ scale: 0.90 }}
       aria-label="Copy code"
-      className="
-        absolute top-2.5 right-2.5 flex items-center gap-1.5
-        px-2.5 py-1 rounded-lg text-xs font-medium
-        bg-zinc-800/90 border border-white/[0.06]
-        text-zinc-400 opacity-0 group-hover/code:opacity-100
-        hover:text-white hover:bg-zinc-700 hover:border-white/10
-        transition-all duration-150
-      "
+      className="absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium opacity-0 group-hover/code:opacity-100 transition-all"
+      style={{ background: "#1A1A1A", border: "1px solid #2A2A2A", color: done ? "#C8F31D" : "#666" }}
     >
-      <AnimatePresence mode="wait" initial={false}>
-        {done ? (
-          <motion.span
-            key="check"
-            className="flex items-center gap-1 text-emerald-400"
-            initial={{ opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.7 }}
-            transition={SPRING_POP}
-          >
-            <Check className="w-3 h-3" /> Copied
-          </motion.span>
-        ) : (
-          <motion.span
-            key="copy"
-            className="flex items-center gap-1"
-            initial={{ opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.7 }}
-            transition={SPRING_POP}
-          >
-            <Copy className="w-3 h-3" /> Copy
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </motion.button>
+      {done ? <><Check className="w-3 h-3" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+    </button>
   );
 }
 
-export default function MessageBubble({
-  message,
-  isStreaming = false,
-  activeTool = null,
-}: MessageBubbleProps) {
-  const isUser = message.role === "user";
-  const [copied, setCopied] = useState(false);
+/* ── Generated file card ─────────────────────────────── */
+function GeneratedFileCard({ filename, content }: { filename: string; content: string }) {
+  const [open, setOpen] = useState(false);
 
-  async function copyContent() {
-    await navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+  function download() {
+    const blob = new Blob([content], { type: "text/plain" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
+    <div className="my-3 rounded-md overflow-hidden" style={{ border: "1px solid #2A2A2A", background: "#111" }}>
+      <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid #2A2A2A" }}>
+        <div className="flex items-center gap-2">
+          <FileText className="w-3.5 h-3.5" style={{ color: "#C8F31D" }} />
+          <span className="text-xs font-semibold" style={{ color: "#F5F5F5" }}>{filename}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setOpen(!open)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
+            style={{ border: `1px solid ${open ? "rgba(200,243,29,0.3)" : "#2A2A2A"}`, color: open ? "#C8F31D" : "#666", background: open ? "rgba(200,243,29,0.05)" : "transparent" }}
+          >
+            <Eye className="w-3 h-3" />{open ? "Hide" : "Preview"}
+          </button>
+          <button
+            onClick={download}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold"
+            style={{ background: "#C8F31D", color: "#0A0A0A" }}
+          >
+            <Download className="w-3 h-3" />Download
+          </button>
+        </div>
+      </div>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} style={{ overflow: "hidden" }}>
+            <pre className="p-4 text-xs leading-relaxed overflow-auto whitespace-pre-wrap break-words"
+              style={{ color: "#9A9A9A", maxHeight: 300, fontFamily: "monospace" }}>
+              {content}
+            </pre>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* Parse content for ```file:name blocks */
+function parseContent(content: string) {
+  const parts: Array<{ type: "text" | "file"; text?: string; filename?: string; fileContent?: string }> = [];
+  const FILE_RE = /```file:([^\n]+)\n([\s\S]*?)```/g;
+  let last = 0; let m: RegExpExecArray | null;
+  while ((m = FILE_RE.exec(content)) !== null) {
+    if (m.index > last) parts.push({ type: "text", text: content.slice(last, m.index) });
+    parts.push({ type: "file", filename: m[1].trim(), fileContent: m[2] });
+    last = m.index + m[0].length;
+  }
+  if (last < content.length) parts.push({ type: "text", text: content.slice(last) });
+  return parts;
+}
+
+export default function MessageBubble({ message, isStreaming = false, activeTool = null }: MessageBubbleProps) {
+  const isUser = message.role === "user";
+  const [copied, setCopied] = useState(false);
+
+  const copyMsg = useCallback(async () => {
+    await navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }, [message.content]);
+
+  const parts = parseContent(message.content ?? "");
+
+  return (
     <motion.div
-      className={`flex gap-3.5 w-full ${isUser ? "justify-end" : "justify-start"}`}
-      initial={{ opacity: 0, y: 16, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={SPRING_ENTER}
+      className={`flex gap-3 w-full ${isUser ? "justify-end" : "justify-start"}`}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 260, damping: 24, mass: 0.9 }}
       layout="position"
     >
-      {/* ── Assistant avatar ── */}
+      {/* Assistant mark */}
       {!isUser && (
-        <motion.div
-          className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center mt-0.5 shadow-glow-sm"
-          style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
-          whileHover={{ scale: 1.1, boxShadow: "0 0 24px -4px rgba(124,58,237,0.7)" }}
-          transition={SPRING_POP}
-        >
-          <Sparkles className="w-4 h-4 text-white" />
-        </motion.div>
+        <div className="flex-shrink-0 mt-1" style={{ width: 18 }}>
+          <span style={{ color: "#C8F31D", fontSize: 13, fontWeight: 300, display: "block", marginTop: 3 }} aria-hidden>✳</span>
+        </div>
       )}
 
-      {/* ── Message body ── */}
-      <div className={`group relative max-w-[82%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
-
-        {/* Tool call indicator with breathing dot */}
+      {/* Body */}
+      <div
+        className="group relative flex flex-col gap-2"
+        style={{
+          maxWidth: isUser ? "76%" : "84%",
+          alignItems: isUser ? "flex-end" : "flex-start",
+        }}
+      >
+        {/* Tool indicator */}
         <AnimatePresence>
           {!isUser && isStreaming && activeTool && (
             <motion.div
-              className="flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-medium self-start"
-              style={{
-                background: "rgba(124,58,237,0.1)",
-                border: "1px solid rgba(124,58,237,0.25)",
-                color: "#c4b5fd",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
-              }}
-              initial={{ opacity: 0, scale: 0.85, y: 6 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.85, y: 6 }}
-              transition={SPRING_POP}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium self-start"
+              style={{ background: "rgba(200,243,29,0.05)", border: "1px solid rgba(200,243,29,0.18)", color: "#9A9A9A" }}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }} transition={SPRING_POP}
             >
-              <span className="breathing-dot" />
-              <Wrench className="w-3 h-3 text-penda-400" />
-              <span>Using <span className="font-semibold text-penda-300">{activeTool}</span>…</span>
+              <span className="lime-dot" />
+              <Wrench className="w-3 h-3" style={{ color: "#C8F31D" }} />
+              <span>Using <strong style={{ color: "#C8F31D" }}>{activeTool}</strong>…</span>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Bubble */}
-        <motion.div
-          className={`relative px-4 py-3.5 text-sm leading-relaxed ${
-            isUser
-              ? "rounded-2xl rounded-tr-md text-white"
-              : "rounded-2xl rounded-tl-md text-zinc-100"
-          }`}
-          style={
-            isUser
-              ? {
-                  background: "linear-gradient(135deg, #7c3aed, #4f46e5)",
-                  boxShadow: "0 4px 20px rgba(124,58,237,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
-                }
-              : {
-                  background: "rgba(20,20,25,0.78)",
-                  border: "1px solid rgba(255,255,255,0.07)",
-                  backdropFilter: "blur(8px)",
-                  boxShadow: "0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)",
-                }
-          }
-          whileHover={isUser ? { boxShadow: "0 6px 28px rgba(124,58,237,0.38), inset 0 1px 0 rgba(255,255,255,0.14)" } : {}}
-          transition={{ duration: 0.2 }}
-        >
-          {isUser ? (
+        {/* Message content */}
+        {isUser ? (
+          /* User bubble */
+          <div
+            className="px-4 py-3 rounded-lg rounded-tr-sm text-sm leading-relaxed"
+            style={{ background: "#1A1A1A", border: "1px solid #2A2A2A", color: "#F5F5F5" }}
+          >
+            {message.file_name && (
+              <div className="flex items-center gap-2 mb-2 pb-2 text-xs"
+                style={{ borderBottom: "1px solid #2A2A2A", color: "#9A9A9A" }}>
+                <FileText className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#C8F31D" }} />
+                <span className="truncate">{message.file_name}</span>
+              </div>
+            )}
             <p className="whitespace-pre-wrap">{message.content}</p>
-          ) : (
-            <div className="prose-penda">
-              {message.content ? (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    // @ts-expect-error — react-markdown inline prop type mismatch
-                    code({ inline, className, children, ...props }) {
-                      const match = /language-(\w+)/.exec(className || "");
-                      const codeStr = String(children).replace(/\n$/, "");
-                      return !inline && match ? (
-                        <motion.div
-                          className="relative group/code my-1"
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                        >
-                          {/* Language badge */}
-                          <div className="absolute top-0 left-0 px-3 py-1 text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-wider select-none">
-                            {match[1]}
-                          </div>
-                          <SyntaxHighlighter
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            style={oneDark as any}
-                            language={match[1]}
-                            PreTag="div"
-                            customStyle={{
-                              margin: 0,
-                              borderRadius: "12px",
-                              fontSize: "13px",
-                              background: "#0b0b0f",
-                              border: "1px solid rgba(255,255,255,0.07)",
-                              paddingTop: "30px",
-                              boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-                            }}
-                          >
-                            {codeStr}
-                          </SyntaxHighlighter>
-                          <CopyCodeButton code={codeStr} />
-                        </motion.div>
-                      ) : (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      );
-                    },
-                    // Fade-in tables
-                    table({ children }) {
-                      return (
-                        <motion.table
-                          className="w-full border-collapse my-3 text-sm"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          {children}
-                        </motion.table>
-                      );
-                    },
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
-              ) : (
-                /* Typing bouncing dots */
-                <div className="flex items-center gap-1.5 py-1">
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      className="w-1.5 h-1.5 rounded-full bg-penda-400/60"
-                      animate={{ y: [0, -5, 0] }}
-                      transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.14, ease: "easeInOut" }}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Live streaming cursor — glowing bar */}
-              {isStreaming && message.content && (
-                <span className="streaming-cursor" aria-hidden="true" />
-              )}
-            </div>
-          )}
-        </motion.div>
-
-        {/* Copy button — assistant only, after streaming ends */}
-        <AnimatePresence>
-          {!isUser && message.content && !isStreaming && (
-            <motion.button
-              onClick={copyContent}
-              whileTap={{ scale: 0.88 }}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 0, y: 0 }}
-              whileHover={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="
-                group-hover:opacity-100 transition-opacity
-                self-start mt-0.5 flex items-center gap-1.5
-                px-2 py-1 rounded-lg text-xs
-                text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/70
-              "
-              aria-label="Copy message"
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {copied ? (
-                  <motion.span
-                    key="done"
-                    className="flex items-center gap-1 text-emerald-400"
-                    initial={{ opacity: 0, scale: 0.7 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={SPRING_POP}
-                  >
-                    <Check className="w-3 h-3" /> Copied
-                  </motion.span>
-                ) : (
-                  <motion.span
-                    key="idle"
-                    className="flex items-center gap-1"
-                    initial={{ opacity: 0, scale: 0.7 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={SPRING_POP}
-                  >
-                    <Copy className="w-3 h-3" /> Copy
-                  </motion.span>
+          </div>
+        ) : (
+          /* Assistant — borderless editorial text */
+          <div className="text-sm leading-[1.8]" style={{ color: "#E8E8E8" }}>
+            {message.content ? (
+              <div className="prose-penda">
+                {parts.map((part, idx) =>
+                  part.type === "file" ? (
+                    <GeneratedFileCard key={idx} filename={part.filename!} content={part.fileContent!} />
+                  ) : (
+                    <ReactMarkdown
+                      key={idx}
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        // @ts-expect-error — inline prop type mismatch
+                        code({ inline, className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          const code  = String(children).replace(/\n$/, "");
+                          return !inline && match ? (
+                            <div className="relative group/code my-2.5">
+                              <div className="absolute top-0 left-0 px-3 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider select-none" style={{ color: "#444" }}>
+                                {match[1]}
+                              </div>
+                              <SyntaxHighlighter
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                style={oneDark as any}
+                                language={match[1]}
+                                PreTag="div"
+                                customStyle={{ margin: 0, borderRadius: 9, fontSize: "12.5px", background: "#0F0F0F", border: "1px solid #2A2A2A", paddingTop: 28 }}
+                              >
+                                {code}
+                              </SyntaxHighlighter>
+                              <CopyCodeButton code={code} />
+                            </div>
+                          ) : (
+                            <code className={className} {...props}>{children}</code>
+                          );
+                        },
+                        table({ children }) {
+                          return <div className="overflow-x-auto my-3"><table className="w-full border-collapse text-sm">{children}</table></div>;
+                        },
+                      }}
+                    >
+                      {part.text ?? ""}
+                    </ReactMarkdown>
+                  )
                 )}
-              </AnimatePresence>
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </div>
+              </div>
+            ) : (
+              <div className="typing-dots">
+                <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+              </div>
+            )}
+            {isStreaming && message.content && <span className="streaming-cursor" aria-hidden />}
+          </div>
+        )}
 
-      {/* ── User avatar ── */}
-      {isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center mt-0.5 bg-zinc-800 border border-white/[0.07]">
-          <User className="w-4 h-4 text-zinc-300" />
-        </div>
-      )}
+        {/* ── Action toolbar — appears on hover after streaming ends ── */}
+        {!isStreaming && message.content && (
+          <motion.div
+            className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+            style={{ alignSelf: isUser ? "flex-end" : "flex-start" }}
+          >
+            {/* Copy */}
+            <button
+              onClick={copyMsg}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors"
+              style={{ color: copied ? "#C8F31D" : "#555", border: `1px solid ${copied ? "rgba(200,243,29,0.25)" : "#222"}` }}
+              title="Copy message"
+            >
+              {copied ? <><Check className="w-3 h-3" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+            </button>
+
+            {/* Re-prompt (assistant only) */}
+            {!isUser && (
+              <button
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors"
+                style={{ color: "#555", border: "1px solid #222" }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "#9A9A9A"; e.currentTarget.style.borderColor = "#333"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "#555"; e.currentTarget.style.borderColor = "#222"; }}
+                title="Regenerate"
+                disabled
+              >
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            )}
+          </motion.div>
+        )}
+      </div>
     </motion.div>
   );
 }

@@ -9,106 +9,74 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "'Fira Code'", "monospace"],
+        sans:  ["Inter", "system-ui", "sans-serif"],
+        serif: ["Playfair Display", "Georgia", "serif"],
+        mono:  ["'Fira Code'", "'JetBrains Mono'", "monospace"],
       },
       colors: {
-        penda: {
-          50:  "#f5f3ff",
-          100: "#ede9fe",
-          200: "#ddd6fe",
-          300: "#c4b5fd",
-          400: "#a78bfa",
-          500: "#8b5cf6",
-          600: "#7c3aed",
-          700: "#6d28d9",
-          800: "#5b21b6",
-          900: "#4c1d95",
-          950: "#2e1065",
+        /* Lime accent */
+        lime: {
+          DEFAULT: "#C8F31D",
+          dim:     "rgba(200,243,29,0.12)",
+          border:  "rgba(200,243,29,0.35)",
         },
-        zinc: {
-          950: "#09090b",
-        },
+        /* Base surfaces */
+        base:    "#0A0A0A",
+        panel:   "#161616",
+        elevated:"#1E1E1E",
+        hover:   "#222222",
+        /* Hairline borders */
+        hair:    "#2A2A2A",
+        mid:     "#333333",
+        strong:  "#444444",
+        /* Text */
+        primary: "#F5F5F5",
+        secondary:"#9A9A9A",
+        tertiary: "#555555",
       },
-      backgroundImage: {
-        "penda-gradient":  "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)",
-        "mesh-gradient":
-          "radial-gradient(at 40% 20%, hsla(265,80%,30%,0.3) 0, transparent 50%), radial-gradient(at 80% 80%, hsla(240,70%,25%,0.25) 0, transparent 50%)",
-        "mesh-accent":
-          "radial-gradient(at 60% 50%, hsla(265,90%,55%,0.08) 0, transparent 60%)",
+      borderRadius: {
+        sm:  "6px",
+        md:  "9px",
+        lg:  "12px",
+        xl:  "16px",
+        "2xl": "20px",
       },
       animation: {
-        // Streaming cursor — glowing pulse
-        "cursor-glow":    "cursorGlow 1.1s ease-in-out infinite",
-        "cursor-blink":   "blink 1s step-end infinite",
-
-        // Background orb drift
-        "orb-drift-a":    "orbDriftA 18s ease-in-out infinite alternate",
-        "orb-drift-b":    "orbDriftB 22s ease-in-out infinite alternate",
-        "orb-drift-c":    "orbDriftC 28s ease-in-out infinite alternate",
-
-        // Tool pill breathing dot
-        "breathe":        "breathe 1.6s ease-in-out infinite",
-
-        // Generic utilities
-        "fade-up":        "fadeUp 0.4s ease-out",
-        "shimmer":        "shimmer 1.5s infinite",
-        "pulse-slow":     "pulse 3s ease-in-out infinite",
-        "slide-in-left":  "slideInLeft 0.3s ease-out",
-        "float":          "float 4s ease-in-out infinite",
+        "cursor-blink": "cursorBlink 1s step-end infinite",
+        "lime-pulse":   "limePulse 1.4s ease-in-out infinite",
+        "dot-bounce":   "dotBounce 0.8s ease-in-out infinite",
+        "fade-up":      "fadeUp 0.4s cubic-bezier(0.22,1,0.36,1) both",
+        "slide-left":   "slideInLeft 0.3s cubic-bezier(0.22,1,0.36,1) both",
+        "shimmer":      "shimmer 1.8s infinite",
       },
       keyframes: {
-        cursorGlow: {
-          "0%, 100%": { opacity: "1",   transform: "scaleY(1)",    boxShadow: "0 0 8px 2px rgba(167,139,250,0.8)" },
-          "50%":       { opacity: "0.3", transform: "scaleY(0.85)", boxShadow: "0 0 3px 1px rgba(167,139,250,0.3)" },
+        cursorBlink: {
+          "0%, 100%": { opacity: "0.85" },
+          "50%":      { opacity: "0"    },
         },
-        blink: {
-          "0%, 100%": { opacity: "1" },
-          "50%":       { opacity: "0" },
+        limePulse: {
+          "0%, 100%": { transform: "scale(1)",    opacity: "1"    },
+          "50%":      { transform: "scale(1.5)",  opacity: "0.55" },
         },
-        breathe: {
-          "0%, 100%": { transform: "scale(1)",    opacity: "1"   },
-          "50%":       { transform: "scale(1.45)", opacity: "0.6" },
-        },
-        orbDriftA: {
-          "0%":   { transform: "translate(0px, 0px)   scale(1)"    },
-          "100%": { transform: "translate(60px, 40px) scale(1.08)" },
-        },
-        orbDriftB: {
-          "0%":   { transform: "translate(0px, 0px)    scale(1)"    },
-          "100%": { transform: "translate(-50px, 30px) scale(1.05)" },
-        },
-        orbDriftC: {
-          "0%":   { transform: "translate(0px, 0px)   scale(1)"    },
-          "100%": { transform: "translate(30px, -50px) scale(1.1)" },
-        },
-        slideInLeft: {
-          from: { opacity: "0", transform: "translateX(-16px)" },
-          to:   { opacity: "1", transform: "translateX(0)"     },
+        dotBounce: {
+          "0%, 80%, 100%": { transform: "translateY(0)" },
+          "40%":           { transform: "translateY(-5px)" },
         },
         fadeUp: {
-          from: { opacity: "0", transform: "translateY(12px)" },
+          from: { opacity: "0", transform: "translateY(14px)" },
           to:   { opacity: "1", transform: "translateY(0)"    },
+        },
+        slideInLeft: {
+          from: { opacity: "0", transform: "translateX(-14px)" },
+          to:   { opacity: "1", transform: "translateX(0)"     },
         },
         shimmer: {
           "0%":   { backgroundPosition: "-200% 0" },
-          "100%": { backgroundPosition: "200% 0"  },
-        },
-        float: {
-          "0%, 100%": { transform: "translateY(0px)"  },
-          "50%":       { transform: "translateY(-8px)" },
+          "100%": { backgroundPosition:  "200% 0" },
         },
       },
       boxShadow: {
-        "glow-violet":  "0 0 24px -4px rgba(124, 58, 237, 0.55)",
-        "glow-sm":      "0 0 14px -2px rgba(124, 58, 237, 0.4)",
-        "glow-lg":      "0 0 48px -8px rgba(124, 58, 237, 0.6)",
-        "glass":        "0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)",
-        "glass-strong": "0 16px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)",
-        "inner-top":    "inset 0 1px 0 0 rgba(255,255,255,0.06)",
-      },
-      backdropBlur: {
-        xs: "2px",
+        none: "none",
       },
     },
   },

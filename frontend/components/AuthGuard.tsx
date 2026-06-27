@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Sparkles } from "lucide-react";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -17,15 +16,24 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
+      <div
+        className="flex h-screen items-center justify-center"
+        style={{ background: "#0A0A0A" }}
+      >
+        <div className="flex flex-col items-center gap-4">
+          {/* Dotted lime badge pulsing */}
           <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center animate-pulse"
-            style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+            className="w-10 h-10 rounded-full flex items-center justify-center animate-pulse"
+            style={{
+              border: "1.5px dashed rgba(200,243,29,0.5)",
+              background: "rgba(200,243,29,0.05)",
+            }}
           >
-            <Sparkles className="w-6 h-6 text-white" />
+            <span style={{ fontSize: 16, fontWeight: 800, color: "#C8F31D" }}>P</span>
           </div>
-          <p className="text-zinc-600 text-sm">Authenticating…</p>
+          <p className="text-[12px] tracking-widest uppercase" style={{ color: "#444" }}>
+            Authenticating…
+          </p>
         </div>
       </div>
     );

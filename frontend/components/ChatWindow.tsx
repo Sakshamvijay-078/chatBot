@@ -2,21 +2,21 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Sparkles, Zap, Globe, Calculator, FileText } from "lucide-react";
+import { Zap, Globe, Calculator, FileText, Menu, Share2, Settings, Copy, Check } from "lucide-react";
+import { useState } from "react";
 import MessageBubble from "@/components/MessageBubble";
 import ChatInput from "@/components/ChatInput";
 import { Message } from "@/types";
 import { StreamingState } from "@/store/chatStore";
 
-/* ── Spring presets ────────────────────────────────────────── */
-const SPRING_ENTER  = { type: "spring" as const, stiffness: 260, damping: 22, mass: 0.9 };
-const SPRING_SOFT   = { type: "spring" as const, stiffness: 180, damping: 28, mass: 1.1 };
+const SPRING_SOFT  = { type: "spring" as const, stiffness: 180, damping: 28, mass: 1.1 };
+const SPRING_ENTER = { type: "spring" as const, stiffness: 260, damping: 24, mass: 0.9 };
 
 const SUGGESTIONS = [
-  { icon: <Zap className="w-4 h-4" />,        text: "Explain quantum computing simply"       },
-  { icon: <Globe className="w-4 h-4" />,       text: "Search the web for latest AI news"      },
-  { icon: <Calculator className="w-4 h-4" />,  text: "Calculate compound interest for 5 years" },
-  { icon: <FileText className="w-4 h-4" />,    text: "Write a professional email draft"       },
+  { icon: <Zap className="w-4 h-4" style={{ color: "#C8F31D" }} />,        text: "Explain quantum computing simply",          label: "Concepts"  },
+  { icon: <Globe className="w-4 h-4" style={{ color: "#C8F31D" }} />,       text: "Search the web for latest AI news",         label: "Research"  },
+  { icon: <Calculator className="w-4 h-4" style={{ color: "#C8F31D" }} />,  text: "Calculate compound interest for 5 years",   label: "Math"      },
+  { icon: <FileText className="w-4 h-4" style={{ color: "#C8F31D" }} />,    text: "Write a professional email draft",          label: "Writing"   },
 ];
 
 interface ChatWindowProps {
@@ -25,160 +25,210 @@ interface ChatWindowProps {
   error: string | null;
   onSend: (text: string, docContent?: string, docName?: string) => void;
   onStop: () => void;
+  activeChatId: string | null;
+  onOpenMobileSidebar: () => void;
+  onOpenShare: () => void;
+  onOpenSettings: () => void;
+}
+
+/** Copy entire conversation as plain text */
+function useCopyConversation(messages: Message[]) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    const text = messages
+      .filter((m) => m.role !== "system")
+      .map((m) => `${m.role === "user" ? "You" : "Penda"}: ${m.content}`)
+      .join("\n\n");
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return { copied, copy };
 }
 
 export default function ChatWindow({
-  messages,
-  streamingState,
-  error,
-  onSend,
-  onStop,
+  messages, streamingState, error, onSend, onStop,
+  activeChatId, onOpenMobileSidebar, onOpenShare, onOpenSettings,
 }: ChatWindowProps) {
-  const scrollRef   = useRef<HTMLDivElement>(null);
-  const bottomRef   = useRef<HTMLDivElement>(null);
+  const scrollRef    = useRef<HTMLDivElement>(null);
+  const bottomRef    = useRef<HTMLDivElement>(null);
   const userScrolled = useRef(false);
-
   const { isStreaming, activeTool } = streamingState;
   const isEmpty = messages.length === 0;
+  const { copied, copy } = useCopyConversation(messages);
 
-  /* ── Smart auto-scroll: yields if user manually scrolled up ── */
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    userScrolled.current = !atBottom;
+    userScrolled.current = el.scrollHeight - el.scrollTop - el.clientHeight > 80;
   }, []);
 
   useEffect(() => {
-    if (!userScrolled.current) {
+    if (!userScrolled.current)
       bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
   }, [messages]);
 
-  /* Re-anchor when streaming new token */
   useEffect(() => {
-    if (isStreaming && !userScrolled.current) {
+    if (isStreaming && !userScrolled.current)
       bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
   }, [isStreaming, messages]);
 
   return (
-    /*
-     * LAYOUT CONTRACT:
-     * Parent gives full height via flex-1.
-     * - Scrollable area fills all space above the pinned input bar.
-     * - The animated gradient mesh sits behind everything via z-0.
-     */
-    <div className="flex flex-col w-full relative" style={{ height: "100%" }}>
+    <div className="flex flex-col w-full h-full" style={{ background: "#0A0A0A" }}>
 
-      {/* ── Animated background mesh ── */}
-      <div className="bg-mesh" aria-hidden="true" />
+      {/* Decorative asterisks */}
+      <span className="asterisk-mark" style={{ top: "10%", right: "6%",  fontSize: 24, transform: "rotate(12deg)"  }} aria-hidden>✳</span>
+      <span className="asterisk-mark" style={{ bottom: "30%", left: "4%", fontSize: 16, transform: "rotate(-18deg)" }} aria-hidden>✳</span>
+      <span className="asterisk-mark" style={{ top: "52%", right: "16%",  fontSize: 11, transform: "rotate(4deg)"   }} aria-hidden>✳</span>
 
-      {/* ── Scrollable message area ── */}
+      {/* ── Top header ── */}
+      <header
+        className="flex-shrink-0 flex items-center justify-between px-4 py-2.5"
+        style={{ borderBottom: "1px solid #161616", minHeight: 52 }}
+      >
+        {/* Left: hamburger (mobile) */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenMobileSidebar}
+            className="md:hidden w-8 h-8 rounded-md flex items-center justify-center transition-colors"
+            style={{ color: "#555" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#C8F31D")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#555")}
+            aria-label="Open sidebar"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+
+          {/* Chat title / status */}
+          {!isEmpty && (
+            <div className="flex items-center gap-2 ml-1">
+              <span className="status-pill">
+                <span className="status-dot" />
+                Online
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Right: action buttons */}
+        <div className="flex items-center gap-1.5">
+          {/* Copy conversation */}
+          {messages.length > 0 && (
+            <button
+              onClick={copy}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+              style={{ border: "1px solid #2A2A2A", color: copied ? "#C8F31D" : "#666", borderColor: copied ? "rgba(200,243,29,0.3)" : "#2A2A2A" }}
+              title="Copy conversation"
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+            </button>
+          )}
+
+          {/* Share */}
+          {activeChatId && (
+            <button
+              onClick={onOpenShare}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors"
+              style={{ border: "1px solid #2A2A2A", color: "#666" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#C8F31D"; e.currentTarget.style.borderColor = "rgba(200,243,29,0.3)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#666"; e.currentTarget.style.borderColor = "#2A2A2A"; }}
+              title="Share chat"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Share</span>
+            </button>
+          )}
+
+          {/* Settings */}
+          <button
+            onClick={onOpenSettings}
+            className="w-8 h-8 rounded-md flex items-center justify-center transition-colors"
+            style={{ color: "#555" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#C8F31D")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#555")}
+            title="Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* ── Scrollable messages ── */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto relative z-10"
+        className="flex-1 overflow-y-auto"
         style={{ minHeight: 0 }}
       >
-        <div className="max-w-3xl mx-auto w-full px-4 py-8">
-
+        <div className="max-w-2xl mx-auto w-full px-4 py-10">
           <AnimatePresence mode="wait">
             {isEmpty ? (
-              /* ── Welcome screen ── */
+              /* ───────────── EMPTY STATE ───────────── */
               <motion.div
                 key="welcome"
-                className="flex flex-col items-center justify-center min-h-[60vh] text-center"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12, scale: 0.97 }}
-                transition={SPRING_SOFT}
+                className="flex flex-col items-center justify-center min-h-[55vh] text-center"
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }} transition={SPRING_SOFT}
               >
-                {/* Logo orb — floating */}
-                <motion.div
-                  className="relative mb-7"
-                  animate={{ y: [0, -8, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                {/* Greeting */}
+                <motion.p
+                  className="text-sm font-medium mb-3"
+                  style={{ color: "#9A9A9A", letterSpacing: "0.01em" }}
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...SPRING_ENTER, delay: 0.05 }}
                 >
-                  {/* Glow ring */}
-                  <div
-                    className="absolute inset-0 rounded-2xl scale-[1.6] opacity-25 blur-xl"
-                    style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
-                    aria-hidden="true"
-                  />
-                  <motion.div
-                    className="relative w-16 h-16 rounded-2xl flex items-center justify-center"
-                    style={{
-                      background: "linear-gradient(135deg, #7c3aed, #4f46e5)",
-                      boxShadow: "0 0 40px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
-                    }}
-                    whileHover={{ scale: 1.08, rotate: 4 }}
-                    transition={SPRING_ENTER}
-                  >
-                    <Sparkles className="w-8 h-8 text-white" />
-                  </motion.div>
-                </motion.div>
+                  Hi, I&apos;m Penda 👋
+                </motion.p>
 
+                {/* Hero headline — geometric sans + italic serif */}
                 <motion.h1
-                  className="text-3xl font-bold text-white mb-2 tracking-tight"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ ...SPRING_ENTER, delay: 0.08 }}
+                  className="text-[42px] sm:text-[52px] font-bold leading-[1.08] tracking-tight mb-4"
+                  style={{ color: "#F5F5F5", letterSpacing: "-0.03em" }}
+                  initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...SPRING_ENTER, delay: 0.1 }}
                 >
-                  Hi, I&apos;m <span className="gradient-text">Penda</span>
+                  Ask me{" "}
+                  <span className="font-serif-italic" style={{ color: "#C8F31D", fontWeight: 400 }}>
+                    anything
+                  </span>
                 </motion.h1>
 
                 <motion.p
-                  className="text-zinc-500 text-[15px] mb-10 max-w-xs leading-relaxed"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ ...SPRING_ENTER, delay: 0.14 }}
+                  className="text-[14.5px] mb-10 max-w-[340px]"
+                  style={{ color: "#666", lineHeight: 1.65 }}
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...SPRING_ENTER, delay: 0.16 }}
                 >
-                  Your AI assistant with memory, web search, and tools.
+                  Your AI assistant with memory, web search, and tools — built for real work.
                 </motion.p>
 
-                {/* Suggestion pills */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
+                {/* Suggestion cards — 2×2 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-lg">
                   {SUGGESTIONS.map((s, i) => (
                     <motion.button
                       key={s.text}
                       id={`suggestion-${i}`}
                       onClick={() => onSend(s.text)}
-                      className="
-                        relative flex items-center gap-3 px-4 py-3.5
-                        rounded-xl text-sm text-zinc-300 text-left overflow-hidden
-                        border border-white/[0.07] bg-white/[0.03]
-                        hover:border-penda-500/40 hover:bg-penda-600/[0.08]
-                        hover:text-white group transition-colors duration-200
-                      "
-                      initial={{ opacity: 0, y: 14 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ ...SPRING_ENTER, delay: 0.2 + i * 0.06 }}
-                      whileHover={{ scale: 1.02, y: -1 }}
-                      whileTap={{ scale: 0.97 }}
+                      className="suggestion-card text-left"
+                      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ ...SPRING_ENTER, delay: 0.22 + i * 0.06 }}
+                      whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
                     >
-                      {/* Hover glow */}
-                      <span
-                        className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        style={{ background: "radial-gradient(ellipse at 30% 50%, rgba(124,58,237,0.08) 0%, transparent 70%)" }}
-                        aria-hidden="true"
-                      />
-                      <span className="text-zinc-600 group-hover:text-penda-400 transition-colors duration-200 flex-shrink-0 relative z-10">
-                        {s.icon}
-                      </span>
-                      <span className="relative z-10">{s.text}</span>
+                      <div className="mb-3">{s.icon}</div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#444" }}>{s.label}</p>
+                      <p className="text-[13px] leading-snug" style={{ color: "#E0E0E0" }}>{s.text}</p>
+                      <span className="suggestion-lime-line" aria-hidden />
                     </motion.button>
                   ))}
                 </div>
               </motion.div>
             ) : (
-              /* ── Message list ── */
+              /* ───────────── MESSAGES ───────────── */
               <motion.div
                 key="messages"
-                className="flex flex-col gap-6 pb-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.25 }}
+                className="flex flex-col gap-7 pb-2"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
               >
                 {messages.map((msg, i) => {
                   const isLast = i === messages.length - 1;
@@ -192,46 +242,46 @@ export default function ChatWindow({
                     />
                   );
                 })}
+
+                {/* Loading indicator when waiting for first token */}
+                {isStreaming && messages[messages.length - 1]?.role === "user" && (
+                  <motion.div className="flex gap-3 items-start"
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+                    <div style={{ width: 20, flexShrink: 0, paddingTop: 4 }}>
+                      <span style={{ color: "#C8F31D", fontSize: 14, display: "block" }}>✳</span>
+                    </div>
+                    <div className="typing-dots mt-1">
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                    </div>
+                  </motion.div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Error banner */}
+          {/* Error */}
           <AnimatePresence>
             {error && (
               <motion.div
-                className="mt-4 px-4 py-3.5 rounded-xl text-red-400 text-sm flex items-start gap-2"
-                style={{
-                  background: "rgba(239,68,68,0.07)",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                  backdropFilter: "blur(8px)",
-                }}
-                initial={{ opacity: 0, y: 10, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0,  scale: 1 }}
-                exit={{ opacity: 0, scale: 0.97 }}
-                transition={SPRING_ENTER}
+                className="mt-4 px-4 py-3 rounded-md text-[13.5px]"
+                style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
               >
                 ⚠️ {error}
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Scroll anchor */}
           <div ref={bottomRef} className="h-px" />
         </div>
       </div>
 
-      {/* ── Pinned bottom input bar ── */}
-      <div
-        className="flex-shrink-0 relative z-10"
-        style={{
-          borderTop: "1px solid rgba(255,255,255,0.05)",
-          background: "rgba(9,9,11,0.85)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-        }}
-      >
-        <div className="max-w-3xl mx-auto w-full">
+      {/* ── Input bar ── */}
+      <div className="flex-shrink-0" style={{ borderTop: "1px solid #161616", background: "#0A0A0A" }}>
+        <div className="max-w-2xl mx-auto w-full">
           <ChatInput onSend={onSend} onStop={onStop} isStreaming={isStreaming} />
         </div>
       </div>

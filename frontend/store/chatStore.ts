@@ -37,6 +37,8 @@ interface ChatStore {
   loadMessages: (token: string, chatId: string) => Promise<void>;
   /** updateUrl = true (default) pushes route; false = internal only (used by [chatId] page) */
   selectChat: (chatId: string, updateUrl?: boolean) => void;
+  /** Clear active chat — use when navigating to the /chat welcome page */
+  clearChat: () => void;
   newChat: (token: string) => Promise<string | null>;
   deleteChat: (token: string, chatId: string) => Promise<void>;
   sendMessage: (
@@ -80,11 +82,25 @@ export const useChatStore = create<ChatStore>()(
       },
 
       // ── selectChat ──────────────────────────────────────────
-      // updateUrl is only used externally (by page components)
-      // The store itself only manages the active chat ID state.
+      // updateUrl is only used externally (by page components).
       selectChat: (chatId, _updateUrl = true) => {
         get()._cancelStream?.();
-        set({ activeChatId: chatId, error: null, _cancelStream: null }, false, "selectChat");
+        set(
+          { activeChatId: chatId, error: null, _cancelStream: null },
+          false,
+          "selectChat",
+        );
+      },
+
+      // ── clearChat ───────────────────────────────────────────
+      // Reset to welcome screen without selecting a chat.
+      clearChat: () => {
+        get()._cancelStream?.();
+        set(
+          { activeChatId: null, messages: [], error: null, _cancelStream: null },
+          false,
+          "clearChat",
+        );
       },
 
       // ── newChat ─────────────────────────────────────────────

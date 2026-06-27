@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
@@ -20,11 +19,11 @@ export default function ChatIdPage() {
   const { session } = useAuth();
   const token = session?.access_token ?? "";
 
-  const chats        = useChatStore((s) => s.chats);
-  const activeChatId = useChatStore((s) => s.activeChatId);
-  const messages     = useChatStore((s) => s.messages);
+  const chats          = useChatStore((s) => s.chats);
+  const activeChatId   = useChatStore((s) => s.activeChatId);
+  const messages       = useChatStore((s) => s.messages);
   const streamingState = useChatStore((s) => s.streamingState);
-  const error        = useChatStore((s) => s.error);
+  const error          = useChatStore((s) => s.error);
 
   const loadChats    = useChatStore((s) => s.loadChats);
   const loadMessages = useChatStore((s) => s.loadMessages);
@@ -34,42 +33,54 @@ export default function ChatIdPage() {
   const sendMessage  = useChatStore((s) => s.sendMessage);
   const stopStreaming = useChatStore((s) => s.stopStreaming);
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const didMount = useRef(false);
+  const [settingsOpen,     setSettingsOpen]     = useState(false);
+  const [shareTarget,      setShareTarget]       = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebar,    setMobileSidebar]    = useState(false);
+
+  // Prevent duplicate init and redirect loops
+  const didInit       = useRef(false);
+  const chatsLoaded   = useRef(false);
+  const currentToken  = useRef("");
 
   useKeepAlive(!!token);
 
-  // Bootstrap: load chats when token is available
+  // Load chats once per token value (not on every render)
   useEffect(() => {
-    if (token) loadChats(token);
+    if (!token || token === currentToken.current) return;
+    currentToken.current = token;
+    chatsLoaded.current  = false;
+    loadChats(token);
+    chatsLoaded.current = true;
   }, [token, loadChats]);
 
-  // On mount: restore chat from URL param
+  // Restore this specific chat from URL — run once on mount
   useEffect(() => {
-    if (token && chatId && !didMount.current) {
-      didMount.current = true;
-      // Select the chat from the URL without pushing to history
-      selectChat(chatId, /* updateUrl */ false);
-      loadMessages(token, chatId);
-    }
+    if (!token || !chatId || didInit.current) return;
+    didInit.current = true;
+    selectChat(chatId, false);
+    loadMessages(token, chatId);
   }, [token, chatId, selectChat, loadMessages]);
 
-  // Sync: if store activeChatId changes to a different chat, navigate
+  // Navigate if the store switches to a DIFFERENT chat (e.g. sidebar click)
+  // Guard: only navigate when the change was intentional (not from our own init)
   useEffect(() => {
-    if (activeChatId && activeChatId !== chatId) {
-      router.push(`/chat/${activeChatId}`);
-    }
+    if (!activeChatId) return;
+    if (activeChatId === chatId) return;
+    // A different chat was selected via sidebar — navigate to it
+    router.push(`/chat/${activeChatId}`);
   }, [activeChatId, chatId, router]);
 
   const handleSelectChat = (id: string) => {
-    selectChat(id, /* updateUrl */ false);
+    selectChat(id, false);
     router.push(`/chat/${id}`);
+    setMobileSidebar(false);
   };
 
   const handleNewChat = async () => {
     const id = await newChat(token);
     if (id) router.push(`/chat/${id}`);
+    setMobileSidebar(false);
   };
 
   const handleDeleteChat = async (id: string) => {
@@ -82,51 +93,40 @@ export default function ChatIdPage() {
 
   return (
     <AuthGuard>
-      <div
-        style={{
-          display: "flex",
-          width: "100vw",
-          height: "100vh",
-          overflow: "hidden",
-          background: "#09090b",
-        }}
-      >
-        <div className="flex-shrink-0 flex h-full absolute md:relative z-20">
-          <Sidebar
-            chats={chats}
-            activeChatId={activeChatId}
-            onSelectChat={handleSelectChat}
-            onNewChat={handleNewChat}
-            onDeleteChat={handleDeleteChat}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onShareChat={() => setShareModalOpen(true)}
-          />
-        </div>
+      <div className="flex w-screen h-screen overflow-hidden" style={{ background: "#0A0A0A" }}>
+        <Sidebar
+          chats={chats}
+          activeChatId={activeChatId}
+          onSelectChat={handleSelectChat}
+          onNewChat={handleNewChat}
+          onDeleteChat={handleDeleteChat}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onShareChat={(id) => setShareTarget(id ?? activeChatId)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
+          mobileOpen={mobileSidebar}
+          onCloseMobile={() => setMobileSidebar(false)}
+        />
 
-        <main
-          className="flex-1 flex flex-col h-full min-w-0 w-full pl-[60px] md:pl-0"
-          style={{ overflow: "hidden" }}
-        >
+        <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
           <ChatWindow
             messages={messages}
             streamingState={streamingState}
             error={error}
             onSend={handleSend}
             onStop={stopStreaming}
+            activeChatId={activeChatId}
+            onOpenMobileSidebar={() => setMobileSidebar(true)}
+            onOpenShare={() => setShareTarget(activeChatId)}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         </main>
       </div>
 
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {shareModalOpen && activeChatId && (
-        <ShareModal
-          chatId={activeChatId}
-          onClose={() => setShareModalOpen(false)}
-        />
+      {shareTarget && (
+        <ShareModal chatId={shareTarget} onClose={() => setShareTarget(null)} />
       )}
     </AuthGuard>
   );
