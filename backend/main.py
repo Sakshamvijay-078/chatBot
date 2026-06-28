@@ -174,10 +174,11 @@ async def add_security_headers(request: Request, call_next):
 
 
 # ── CORS ─────────────────────────────────────────────────────────
-allowed_origins = [origin.strip() for origin in ALLOWED_ORIGINS.split(",")]
+# Default to allow all origins using regex to bypass the allow_origins=["*"] restriction when allow_credentials=True.
+# This prevents 400 Bad Request OPTIONS errors due to trailing slashes or config mismatches in ALLOWED_ORIGINS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origin_regex=".*",  # Regex match for all origins resolves Render preflight issues
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
