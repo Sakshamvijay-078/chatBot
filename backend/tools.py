@@ -79,11 +79,25 @@ def calculator(expression: str) -> str:
         return "Error: Not able to calculate. Invalid syntax or operation."
 
 
-@tool(description="Search the web using DuckDuckGo and return top results with their source URLs. Use this when you need current information or facts you don't know.")
+import time as _time
+_search_cache: dict[str, tuple[str, float]] = {}
+_SEARCH_CACHE_TTL = 300  # 5 minutes
+
+@tool(description="Search the web using DuckDuckGo and return top results with their source URLs. Use this when you need current information or facts you don't know. Combine multiple sub-questions into ONE query whenever possible.")
 def web_search(query: str) -> str:
+    """Search the web. Results are cached for 5 minutes to avoid redundant API calls."""
+    # Normalise key
+    cache_key = query.strip().lower()
+
+    # Return cached result if fresh
+    if cache_key in _search_cache:
+        cached_result, ts = _search_cache[cache_key]
+        if _time.monotonic() - ts < _SEARCH_CACHE_TTL:
+            return f"[cached] {cached_result}"
+
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=6))
+            results = list(ddgs.text(query, max_results=4))  # 4 is enough; fewer = faster
         if not results:
             return "No results found."
 
@@ -91,13 +105,19 @@ def web_search(query: str) -> str:
         for i, r in enumerate(results, 1):
             title = r.get("title", "")
             body  = r.get("body", "")
-            url   = r.get("href", "")  
-            lines.append(
-                f"[{i}] {title}\n"
-                f"URL: {url}\n"
-                f"{body}"
-            )
-        return "\n\n".join(lines)
+            url   = r.get("href", "")
+            lines.append(f"[{i}] {title}\nURL: {url}\n{body}")
+        output = "\n\n".join(lines)
+
+        # Cache the result
+        _search_cache[cache_key] = (output, _time.monotonic())
+        # Evict old entries if cache grows too large
+        if len(_search_cache) > 200:
+            oldest = sorted(_search_cache, key=lambda k: _search_cache[k][1])[:50]
+            for k in oldest:
+                del _search_cache[k]
+
+        return output
     except Exception as e:
         return f"Search failed: {e}"
 
@@ -182,7 +202,39 @@ def read_file(path: str) -> str:
 
 @tool(
     description=(
-        "Create a new text file and save it to the user's document storage. "
+        "Create a downloadable file for the user with any content. "
+        "Use this whenever the user asks to 'write a file', 'generate a script', 'create a .py/.txt/.cpp/etc file', or wants to download code/text. "
+        "Provide 'filename' (e.g. 'solution.py', 'README.md', 'data.csv') and 'content' (the full file text). "
+        "The file will appear in the chat as a downloadable card. "
+        "IMPORTANT: After calling this tool, you MUST output the file content in your response using the exact format:\n"
+        "```file:filename\n"
+        "<content>\n"
+        "```\n"
+        "This renders a download button in the UI."
+    )
+)
+def write_file(filename: str, content: str) -> str:
+    """
+    Signal to the LLM to render a downloadable file card in the chat.
+    Returns the markdown block the LLM should include verbatim in its final response.
+    """
+    # Sanitize filename
+    safe_name = filename.lstrip("/").replace("..", "").replace("/", "_").strip()
+    if not safe_name:
+        return "Error: Invalid filename."
+
+    # Return the exact markdown block the frontend GeneratedFileCard parser expects.
+    # The LLM must copy this into its response text.
+    return (
+        f"FILE_READY:{safe_name}\n"
+        f"Include this exact block in your response:\n"
+        f"```file:{safe_name}\n{content}\n```"
+    )
+
+
+@tool(
+    description=(
+        "Create a new text file and save it to the user's document storage in Supabase. "
         "Provide a 'filename' (e.g., 'report.md') and 'content' (the file text). "
         "Returns the storage path of the created file."
     )
@@ -192,7 +244,6 @@ def create_file(filename: str, content: str, user_id: str = "ai-generated") -> s
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         return "Error: Storage is not configured on this server."
 
-    # Sanitize filename
     safe_name = filename.lstrip("/").replace("..", "").replace("/", "_")
     if not safe_name:
         return "Error: Invalid filename."
@@ -213,4 +264,4 @@ def create_file(filename: str, content: str, user_id: str = "ai-generated") -> s
         return f"Error creating file '{safe_name}': {str(e)}"
 
 
-TOOLS = [calculator, web_search, read_webpage, read_file, create_file]
+TOOLS = [calculator, web_search, read_webpage, read_file, write_file, create_file]

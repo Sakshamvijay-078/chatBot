@@ -20,7 +20,12 @@ class ATSState(TypedDict):
     refined_bullets: str
 
 def build_llm(api_key: str, model: str) -> ChatGroq:
-    return ChatGroq(api_key=api_key, model=model)
+    return ChatGroq(
+        api_key=api_key,
+        model=model,
+        max_retries=1,      # Don't let the SDK retry for 24-44s; fail fast instead
+        timeout=30,         # 30s per LLM call; keeps tool loops from stalling
+    )
 
 # FIXED: Defaulting to an active, fast Groq model with high rate limits
 def build_chat_workflow(api_key: str, model: str = "llama-3.1-8b-instant"):
@@ -34,11 +39,12 @@ def build_chat_workflow(api_key: str, model: str = "llama-3.1-8b-instant"):
     graph = StateGraph(ChatState)
     graph.add_node("assistant", assistant)
     graph.add_node("tools", ToolNode(TOOLS))
-    
+
     graph.add_edge(START, "assistant")
     graph.add_conditional_edges("assistant", tools_condition)
     graph.add_edge("tools", "assistant")
 
+    # Cap the assistant↔tool loop at 10 iterations to prevent runaway searches
     return graph.compile()
 
 async def astream_chat_workflow(
@@ -46,9 +52,28 @@ async def astream_chat_workflow(
     model: str,
     history: list,
 ) -> AsyncGenerator[tuple, None]:
+    from langchain_core.messages import SystemMessage as _Sys
+    from langchain_core.runnables import RunnableConfig
+    # Inject file-writing instructions as a system prefix if not already present
+    FILE_SYSTEM_PROMPT = _Sys(content=(
+        "You are Penda, a helpful AI assistant. You have access to tools: web_search, calculator, read_webpage, write_file, read_file.\n\n"
+        "EFFICIENCY RULES:\n"
+        "1. Use web_search ONCE per response — combine all sub-questions into a single query.\n"
+        "2. If you already know the answer, answer directly WITHOUT calling any tool.\n"
+        "3. Keep your responses concise unless the user asks for detail.\n\n"
+        "FILE CREATION: When asked to write/create any file (scripts, code, CSV, etc.), "
+        "format it using:\n```file:filename.ext\n<content>\n```\n"
+        "This renders a Download button in the UI."
+    ))
+    augmented = history
+    if not history or not isinstance(history[0], _Sys):
+        augmented = [FILE_SYSTEM_PROMPT] + list(history)
+
     workflow = build_chat_workflow(api_key, model)
+    # recursion_limit caps the assistant<->tool loop iterations
+    config = RunnableConfig(recursion_limit=10)
     async for chunk, metadata in workflow.astream(
-        {"messages": history}, stream_mode="messages"
+        {"messages": augmented}, stream_mode="messages", config=config
     ):
         yield chunk, metadata
 

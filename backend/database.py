@@ -106,16 +106,19 @@ def get_chat_owner(chat_id: str) -> str | None:
 # Messages
 # ============================================================
 
-def save_message(chat_id: str, role: str, content: str, token_count: int = 0) -> int:
+def save_message(chat_id: str, role: str, content: str, token_count: int = 0, file_name: str | None = None) -> int:
     """Insert a message and return its ID."""
+    row: dict = {
+        "chat_id": chat_id,
+        "role": role,
+        "content": content,
+        "token_count": token_count,
+    }
+    if file_name:
+        row["file_name"] = file_name
     res = (
         _supabase.table("messages")
-        .insert({
-            "chat_id": chat_id,
-            "role": role,
-            "content": content,
-            "token_count": token_count,
-        })
+        .insert(row)
         .execute()
     )
     return res.data[0]["id"]
@@ -125,7 +128,7 @@ def get_messages(chat_id: str) -> list[dict]:
     """Return all messages for a chat in chronological order."""
     res = (
         _supabase.table("messages")
-        .select("role, content")
+        .select("role, content, file_name")
         .eq("chat_id", chat_id)
         .order("id", desc=False)
         .execute()

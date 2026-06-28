@@ -14,7 +14,7 @@ const SPRING_POP = { type: "spring" as const, stiffness: 360, damping: 22, mass:
 
 const ACCEPTED_TYPES =
   ".txt,.md,.csv,.json,.py,.js,.ts,.tsx,.jsx,.html,.xml,.yaml,.yml,.cpp,.java,.c,.h,.hpp,.cs,.php,.rb,.swift,.go,.rs,.pdf";
-const MAX_SIZE_BYTES = 500_000;
+const MAX_SIZE_BYTES = 10_000_000; // 10 MB — matches backend limit
 
 const MODES = ["Fast", "Pro"] as const;
 type Mode = typeof MODES[number];
@@ -147,6 +147,7 @@ export default function ChatInput({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [mode,        setMode]        = useState<Mode>("Fast");
   const [modeOpen,    setModeOpen]    = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // PDF read/extract state
 
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -193,18 +194,22 @@ export default function ChatInput({
     if (!file) return;
 
     if (file.size > MAX_SIZE_BYTES) {
-      setFileError(`File too large (max 500 KB). This file is ${(file.size / 1024).toFixed(0)} KB.`);
+      setFileError(`File too large (max 10 MB). This file is ${(file.size / 1024 / 1024).toFixed(1)} MB.`);
       return;
     }
+
+    setIsProcessing(true);
+    setFileError(null);
 
     const reader = new FileReader();
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
+      setIsProcessing(false);
       if (!result) { setFileError("Could not read file."); return; }
       setPendingDoc({ name: file.name, content: result, size: file.size });
       setFileError(null);
     };
-    reader.onerror = () => setFileError("Failed to read file.");
+    reader.onerror = () => { setIsProcessing(false); setFileError("Failed to read file."); };
 
     if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
       reader.readAsDataURL(file);
@@ -221,7 +226,7 @@ export default function ChatInput({
     return () => document.removeEventListener("click", handler);
   }, [modeOpen]);
 
-  const canSend = !isStreaming && !disabled && (value.trim().length > 0 || pendingDoc !== null);
+  const canSend = !isStreaming && !disabled && !isProcessing && (value.trim().length > 0 || pendingDoc !== null);
   const borderColor = focused ? "#C8F31D" : "#2A2A2A";
 
   return (
@@ -273,9 +278,41 @@ export default function ChatInput({
         )}
       </AnimatePresence>
 
-      {/* Pending document chip */}
+      {/* Pending document chip / processing indicator */}
       <AnimatePresence>
-        {pendingDoc && (
+        {isProcessing && (
+          <motion.div
+            className="flex items-center gap-3 mb-2 px-3.5 py-2.5 rounded-md text-sm"
+            style={{
+              background: "#161616",
+              border: "1px solid rgba(200,243,29,0.25)",
+            }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.18 }}
+          >
+            <div
+              className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0"
+              style={{ background: "#1E1E1E", border: "1px solid #2A2A2A" }}
+            >
+              {/* Spinning indicator */}
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="#2A2A2A" strokeWidth="3" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="#C8F31D" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium block" style={{ color: "#C8F31D" }}>
+                Reading file…
+              </span>
+              <span className="text-xs" style={{ color: "#555555" }}>
+                Extracting content, please wait
+              </span>
+            </div>
+          </motion.div>
+        )}
+        {!isProcessing && pendingDoc && (
           <motion.div
             className="flex items-center gap-3 mb-2 px-3.5 py-2.5 rounded-md text-sm"
             style={{

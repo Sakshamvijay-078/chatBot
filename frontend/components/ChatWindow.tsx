@@ -57,6 +57,16 @@ export default function ChatWindow({
   const isEmpty = messages.length === 0;
   const { copied, copy } = useCopyConversation(messages);
 
+  // Regenerate: re-send the last user message
+  const handleRegenerate = useCallback(() => {
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUserMsg || isStreaming) return;
+    onSend(lastUserMsg.content, undefined, lastUserMsg.file_name);
+  }, [messages, isStreaming, onSend]);
+
+  // Index of the last assistant message (for attaching regenerate)
+  const lastAssistantIdx = messages.reduce((acc, m, i) => (m.role === "assistant" ? i : acc), -1);
+
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -233,12 +243,14 @@ export default function ChatWindow({
                 {messages.map((msg, i) => {
                   const isLast = i === messages.length - 1;
                   const isStreamingThis = isLast && msg.role === "assistant" && isStreaming;
+                  const isLastAssistant = i === lastAssistantIdx;
                   return (
                     <MessageBubble
                       key={i}
                       message={msg}
                       isStreaming={isStreamingThis}
                       activeTool={isStreamingThis ? activeTool : null}
+                      onRegenerate={isLastAssistant && !isStreaming ? handleRegenerate : undefined}
                     />
                   );
                 })}

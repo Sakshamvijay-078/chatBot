@@ -41,3 +41,5 @@ services:
         sync: false           # Optional — only needed for RAG/pgvector embeddings
       - key: LOG_LEVEL
         value: INFO
+      - key: RENDER_EXTERNAL_URL
+        sync: false  # Set this to your Render backend URL, e.g. https://penda-backend.onrender.com

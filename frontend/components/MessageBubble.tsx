@@ -15,6 +15,7 @@ interface MessageBubbleProps {
   message: Message;
   isStreaming?: boolean;
   activeTool?: string | null;
+  onRegenerate?: () => void;
 }
 
 /* ── Code block copy button ─────────────────────────── */
@@ -102,7 +103,7 @@ function parseContent(content: string) {
   return parts;
 }
 
-export default function MessageBubble({ message, isStreaming = false, activeTool = null }: MessageBubbleProps) {
+export default function MessageBubble({ message, isStreaming = false, activeTool = null, onRegenerate }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
 
@@ -131,10 +132,11 @@ export default function MessageBubble({ message, isStreaming = false, activeTool
 
       {/* Body */}
       <div
-        className="group relative flex flex-col gap-2"
+        className="group relative flex flex-col gap-2 min-w-0"
         style={{
           maxWidth: isUser ? "76%" : "84%",
           alignItems: isUser ? "flex-end" : "flex-start",
+          overflow: "hidden",
         }}
       >
         {/* Tool indicator */}
@@ -171,7 +173,7 @@ export default function MessageBubble({ message, isStreaming = false, activeTool
           </div>
         ) : (
           /* Assistant — borderless editorial text */
-          <div className="text-sm leading-[1.8]" style={{ color: "#E8E8E8" }}>
+          <div className="text-sm leading-[1.8] w-full min-w-0" style={{ color: "#E8E8E8", overflowWrap: "break-word", wordBreak: "break-word" }}>
             {message.content ? (
               <div className="prose-penda">
                 {parts.map((part, idx) =>
@@ -244,12 +246,13 @@ export default function MessageBubble({ message, isStreaming = false, activeTool
             {/* Re-prompt (assistant only) */}
             {!isUser && (
               <button
+                onClick={onRegenerate}
                 className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-colors"
                 style={{ color: "#555", border: "1px solid #222" }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "#9A9A9A"; e.currentTarget.style.borderColor = "#333"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "#C8F31D"; e.currentTarget.style.borderColor = "rgba(200,243,29,0.3)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = "#555"; e.currentTarget.style.borderColor = "#222"; }}
-                title="Regenerate"
-                disabled
+                title="Regenerate response"
+                disabled={!onRegenerate}
               >
                 <RefreshCw className="w-3 h-3" />
               </button>

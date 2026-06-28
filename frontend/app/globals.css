@@ -269,18 +269,22 @@ html, body {
   color: var(--text-primary);
   font-size: 14.5px;
   line-height: 1.8;
+  /* Prevent overflow on all screen sizes */
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
-.prose-penda p                        { margin-bottom: 0.75rem; }
+.prose-penda p                        { margin-bottom: 0.75rem; overflow-wrap: break-word; }
 .prose-penda p:last-child             { margin-bottom: 0; }
 .prose-penda h1,
 .prose-penda h2,
-.prose-penda h3                       { font-weight: 700; margin: 1.5rem 0 0.6rem; color: var(--text-primary); letter-spacing: -0.01em; }
+.prose-penda h3                       { font-weight: 700; margin: 1.5rem 0 0.6rem; color: var(--text-primary); letter-spacing: -0.01em; overflow-wrap: break-word; }
 .prose-penda h1                       { font-size: 1.25em; }
 .prose-penda h2                       { font-size: 1.1em; }
 .prose-penda h3                       { font-size: 1em; }
 .prose-penda ul,
 .prose-penda ol                       { padding-left: 1.5rem; margin-bottom: 0.75rem; }
-.prose-penda li                       { margin-bottom: 0.3rem; }
+.prose-penda li                       { margin-bottom: 0.3rem; overflow-wrap: break-word; }
 .prose-penda blockquote {
   border-left: 2px solid var(--lime);
   padding-left: 1rem;
@@ -298,13 +302,20 @@ html, body {
   font-size: 0.87em;
   font-family: 'Fira Code', 'JetBrains Mono', monospace;
   border: 1px solid rgba(200,243,29,0.15);
+  word-break: break-all;
 }
 .prose-penda pre {
   background: #111111;
   border: 1px solid var(--border-hair);
   border-radius: var(--radius-lg);
-  overflow: auto;
+  overflow-x: auto;
+  max-width: 100%;
   margin: 1rem 0;
+}
+/* Make syntax highlighted code blocks scroll horizontally, never overflow parent */
+.prose-penda pre > div {
+  max-width: 100%;
+  overflow-x: auto;
 }
 .prose-penda a {
   color: var(--lime);
@@ -312,6 +323,7 @@ html, body {
   text-decoration-style: dotted;
   text-underline-offset: 3px;
   transition: opacity 0.15s;
+  word-break: break-all;
 }
 .prose-penda a:hover { opacity: 0.75; text-decoration-style: solid; }
 .prose-penda table {
@@ -321,11 +333,14 @@ html, body {
   font-size: 13px;
   border-radius: var(--radius-md);
   overflow: hidden;
+  display: block;
+  overflow-x: auto;
 }
 .prose-penda th, .prose-penda td {
   border: 1px solid var(--border-hair);
   padding: 7px 12px;
   text-align: left;
+  white-space: nowrap;
 }
 .prose-penda th {
   background: var(--bg-elevated);

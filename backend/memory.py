@@ -19,7 +19,34 @@ def estimate_tokens(text: str) -> int:
         # Better fallback ratio
         return int(len(text.split()) * 1.3)
 
-async def manage_memory(chat_id: str, llm, msg_limit: int = 10, token_limit: int = 3000) -> None:
+# ────────────────────────────────────────────────────────────
+# Heuristic pre-filter: skip messages that can't hold user facts
+# ────────────────────────────────────────────────────────────
+_SKIP_PREFIXES = (
+    "what ", "who ", "how ", "when ", "where ", "why ", "can you ",
+    "please ", "tell me ", "explain ", "write ", "generate ", "create ",
+    "hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "sure",
+    "search ", "find ", "look up", "show ", "list ", "give me ",
+)
+
+def _message_may_contain_facts(msg: str) -> bool:
+    """Return True only if the message might contain a user self-disclosure."""
+    stripped = msg.strip()
+    if len(stripped) < 25:          # Too short to contain a meaningful fact
+        return False
+    lower = stripped.lower()
+    for prefix in _SKIP_PREFIXES:
+        if lower.startswith(prefix):
+            return False
+    # Must contain first-person references to be worth checking
+    first_person = ("i am", "i'm", "my ", "i use", "i work", "i study",
+                    "i like", "i prefer", "i hate", "i need", "i want",
+                    "i have", "i've", "i do", "i'm a", "i am a")
+    return any(fp in lower for fp in first_person)
+
+
+async def manage_memory(chat_id: str, llm, msg_limit: int = 20, token_limit: int = 6000) -> None:
+    """Summarise old messages only when the conversation is large — raised thresholds."""
     messages = get_messages(chat_id)
     if not messages:
         return
@@ -74,7 +101,8 @@ def build_context(chat_id: str, user_id: str, llm, current_prompt: str = "") -> 
             "1. Answer ONLY the user's MOST RECENT message. Ignore older messages unless directly relevant.\n"
             "2. NEVER cut your response short.\n"
             "3. When using web_search, include actual source URLs in markdown format: [Title](URL).\n"
-            "4. Only use tools when genuinely required.\n\n"
+            "4. Only use tools when genuinely required.\n"
+            "5. Combine multiple questions into ONE web_search call — do NOT call web_search more than once per response.\n\n"
         )
 
     if summary:
@@ -97,6 +125,11 @@ def build_context(chat_id: str, user_id: str, llm, current_prompt: str = "") -> 
 
 
 async def extract_user_facts(user_message: str, user_id: str, llm) -> None:
+    """Extract long-term user facts — skipped entirely if the message can't contain one."""
+    # Fast pre-filter: most messages (questions, commands, greetings) never contain facts
+    if not _message_may_contain_facts(user_message):
+        return
+
     prompt = (
         "Analyze the following user message. If the user explicitly states a permanent "
         "or long-term fact about themselves (e.g., their name, profession, tech stack, "

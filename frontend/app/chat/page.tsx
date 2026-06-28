@@ -36,7 +36,8 @@ export default function ChatPage() {
   const [mobileSidebar,    setMobileSidebar]    = useState(false);
 
   // Track whether we've already redirected to avoid loop
-  const didRedirect = useRef(false);
+  const didRedirect   = useRef(false);
+  const pendingChatId = useRef<string | null>(null);
 
   useKeepAlive(!!token);
 
@@ -52,13 +53,21 @@ export default function ChatPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Only redirect AFTER sendMessage creates a new chat (activeChatId goes from ""→id)
+  // When a new chat is created (activeChatId appears for the first time),
+  // hold the redirect until streaming is done so the first SSE response isn't killed.
   useEffect(() => {
-    if (activeChatId && !didRedirect.current) {
-      didRedirect.current = true;
-      router.replace(`/chat/${activeChatId}`);
-    }
-  }, [activeChatId, router]);
+    if (!activeChatId || didRedirect.current) return;
+    // Store the chat we want to navigate to
+    pendingChatId.current = activeChatId;
+  }, [activeChatId]);
+
+  // Once streaming finishes, do the redirect
+  useEffect(() => {
+    if (streamingState.isStreaming) return;
+    if (!pendingChatId.current || didRedirect.current) return;
+    didRedirect.current = true;
+    router.replace(`/chat/${pendingChatId.current}`);
+  }, [streamingState.isStreaming, router]);
 
   const handleSelectChat = (id: string) => {
     selectChat(id, false);

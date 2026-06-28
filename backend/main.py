@@ -89,7 +89,7 @@ _jwk_client = PyJWKClient(
 )
 FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS","http://localhost:3000")
-TRIAL_MODEL = "openai/gpt-oss-20b"
+TRIAL_MODEL = "llama-3.1-8b-instant"   # High rate-limits on Groq free tier (30 RPM)
 AVAILABLE_MODELS = [
     {"id": "llama-3.1-8b-instant",                     "name": "Llama 3.1 8B ⚡ (Fast, Default)"},
     {"id": "llama-3.3-70b-versatile",                  "name": "Llama 3.3 70B 💪 (Powerful)"},
@@ -105,9 +105,9 @@ AVAILABLE_MODELS = [
     {"id": "allam-2-7b",                               "name": "Allam 2 7B (🇸🇦 Arabic)"},
 ]
 MAX_BODY_SIZE_BYTES = 10 * 1024 * 1024       # 413 above this
-STREAM_TIMEOUT_SECONDS = 120                  # hard cap on one /chat/stream call
+STREAM_TIMEOUT_SECONDS = 90                   # hard cap on one /chat/stream call
 ATS_TIMEOUT_SECONDS = 90                      # hard cap on one /ats call
-MAX_HISTORY_MESSAGES = 40                     # defensive cap, on top of build_context()
+MAX_HISTORY_MESSAGES = 20                     # keep context lean to save tokens
 
 
 # ============================================================
@@ -125,7 +125,26 @@ validate_key_limiter = RateLimiter(max_requests=5, window_seconds=60)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.executor = ThreadPoolExecutor(max_workers=4)
+
+    # Keep-alive: ping the /ping endpoint every 12 min so Render free tier
+    # doesn't spin down between requests.
+    async def _keep_alive():
+        import httpx as _httpx
+        backend_url = os.getenv("RENDER_EXTERNAL_URL", "")
+        if not backend_url:
+            return  # skip locally or if env var absent
+        while True:
+            await asyncio.sleep(12 * 60)  # 12 minutes
+            try:
+                async with _httpx.AsyncClient(timeout=10) as c:
+                    await c.get(f"{backend_url}/ping")
+                    logger.debug("Keep-alive ping sent.")
+            except Exception:
+                pass  # best-effort; failures are harmless
+
+    _keep_alive_task = asyncio.create_task(_keep_alive())
     yield
+    _keep_alive_task.cancel()
     app.state.executor.shutdown(wait=True)
 
 ## ____ Defining the app here __________
@@ -579,8 +598,9 @@ def get_chat_messages(chat_id: str, user: dict = Depends(get_current_user)):
 
 @app.post("/documents", tags=["Documents"])
 async def upload_document(
-    file: UploadFile = File(...), 
-    user: dict = Depends(get_current_user)
+    request: Request,
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
 ):
     """
     Upload a document to Supabase Storage and save metadata to DB.
@@ -592,16 +612,13 @@ async def upload_document(
     filename = file.filename or "upload"
     mime = file.content_type or "application/octet-stream"
 
-    # Extract text for RAG + DB storage
+    # Extract text for RAG + DB storage — run blocking I/O in thread pool
     content_text = ""
     if mime == "application/pdf" or filename.lower().endswith(".pdf"):
         try:
             loop = asyncio.get_running_loop()
-            executor = request.app.state.executor if hasattr(request, 'app') else None
-            if executor:
-                content_text = await loop.run_in_executor(executor, _extract_pdf_text, content_bytes)
-            else:
-                content_text = _extract_pdf_text(content_bytes)
+            executor: ThreadPoolExecutor = request.app.state.executor
+            content_text = await loop.run_in_executor(executor, _extract_pdf_text, content_bytes)
         except Exception:
             logger.exception("PDF extraction failed during upload")
             content_text = "[Could not extract text from PDF]"
@@ -638,6 +655,7 @@ async def upload_document(
         "size_bytes": size_bytes,
         "file_url": file_url,
         "storage_path": storage_path,
+        "content": content_text[:500],  # small preview for immediate UI display
     }
 
 @app.get("/documents", tags=["Documents"])
@@ -703,7 +721,12 @@ async def stream_chat(
                 ),
             )
 
-    save_message(chat_id, "user", user_message, token_count=estimate_tokens(user_message))
+    # Persist user message; include doc name so history can reconstruct attachment indicator
+    save_message(
+        chat_id, "user", user_message,
+        token_count=estimate_tokens(user_message),
+        file_name=body.doc_name,
+    )
 
     if count_messages(chat_id) == 1:
         update_title(chat_id, user_message[:40])

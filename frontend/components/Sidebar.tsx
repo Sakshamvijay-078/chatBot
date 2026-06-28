@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, MessageSquare, Trash2, Settings, LogOut,
-  ChevronLeft, ChevronRight, Share2, Users, Zap,
+  ChevronLeft, Share2, Users, Zap,
   MoreHorizontal, ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -112,9 +112,15 @@ export default function Sidebar({
 
       {/* ── Header ── */}
       <div className="flex items-center gap-2.5 px-3 py-3.5" style={{ borderBottom: "1px solid #1F1F1F", minHeight: 56 }}>
-        <div className="dotted-badge flex-shrink-0" style={{ width: 32, height: 32 }}>
+        <button
+          onClick={collapsed ? onToggleCollapsed : undefined}
+          className={collapsed ? "dotted-badge flex-shrink-0 cursor-pointer transition-colors" : "dotted-badge flex-shrink-0"}
+          style={{ width: 32, height: 32 }}
+          title={collapsed ? "Expand sidebar" : undefined}
+          aria-label={collapsed ? "Expand sidebar" : "Penda"}
+        >
           <span style={{ fontSize: 14, fontWeight: 800, color: "#C8F31D", letterSpacing: "-0.03em" }}>P</span>
-        </div>
+        </button>
         <AnimatePresence>
           {!collapsed && (
             <motion.div
@@ -127,16 +133,19 @@ export default function Sidebar({
             </motion.div>
           )}
         </AnimatePresence>
-        <button
-          onClick={onToggleCollapsed}
-          className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center transition-colors"
-          style={{ color: "#444" }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#C8F31D")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#444")}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-        </button>
+        {/* Show collapse chevron only when expanded */}
+        {!collapsed && (
+          <button
+            onClick={onToggleCollapsed}
+            className="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center transition-colors"
+            style={{ color: "#444" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#C8F31D")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#444")}
+            aria-label="Collapse sidebar"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* ── New Chat ── */}

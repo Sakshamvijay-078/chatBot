@@ -146,7 +146,7 @@ export const useChatStore = create<ChatStore>()(
           (s) => ({
             messages: [
               ...s.messages,
-              { role: "user" as const, content: text },
+              { role: "user" as const, content: text, file_name: docName ?? undefined },
               { role: "assistant" as const, content: "" },
             ],
             streamingState: { isStreaming: true, activeTool: null },
