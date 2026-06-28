@@ -363,10 +363,4 @@ npx vercel --prod
 
 ---
 
-## 📄 License
-
-MIT — see [LICENSE](LICENSE)
-
----
-
 *Built by Saksham Vijay*
