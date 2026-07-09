@@ -4,7 +4,7 @@ import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Sparkles, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Sparkles, Mail, Lock, User, CheckCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
@@ -42,20 +42,26 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="auth-page">
         <motion.div
-          className="w-full max-w-md glass-strong rounded-2xl p-10 text-center shadow-glass"
+          className="auth-card text-center"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <div className="text-4xl mb-4">🎉</div>
-          <h2 className="text-xl font-bold text-white mb-2">Check your email</h2>
-          <p className="text-zinc-400 text-sm mb-6">
-            We sent a confirmation link to <span className="text-penda-400">{email}</span>.
+          <div className="flex items-center justify-center w-14 h-14 rounded-2xl mx-auto mb-4"
+            style={{ background: "rgba(200,243,29,0.12)", border: "1px solid rgba(200,243,29,0.3)" }}>
+            <CheckCircle className="w-7 h-7" style={{ color: "var(--lime)" }} />
+          </div>
+          <h2 className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>Check your email</h2>
+          <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
+            We sent a confirmation link to{" "}
+            <span style={{ color: "var(--lime)" }}>{email}</span>.
             Click it to activate your account.
           </p>
           <Link href="/auth/login">
-            <button className="btn-primary w-full">Back to Sign In</button>
+            <button className="btn-lime w-full" style={{ borderRadius: "var(--radius-md)" }}>
+              Back to Sign In
+            </button>
           </Link>
         </motion.div>
       </div>
@@ -63,10 +69,13 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-violet-900/30 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-900/25 rounded-full blur-3xl animate-pulse-slow" />
+    <div className="auth-page">
+      {/* Ambient background glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl"
+          style={{ background: "rgba(200, 243, 29, 0.05)", animation: "limePulse 4s ease-in-out infinite" }} />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full blur-3xl"
+          style={{ background: "rgba(200, 243, 29, 0.03)", animation: "limePulse 4s ease-in-out infinite 1.5s" }} />
       </div>
 
       <motion.div
@@ -76,20 +85,28 @@ export default function SignupPage() {
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="text-center mb-8">
-          <div
+          <motion.div
             className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-            style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+            style={{ background: "var(--lime)" }}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.4 }}
           >
-            <Sparkles className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-1">Create your account</h1>
-          <p className="text-zinc-400 text-sm">Start using Penda for free</p>
+            <Sparkles className="w-7 h-7 text-[#0A0A0A]" />
+          </motion.div>
+          <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>Create your account</h1>
+          <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>Start using Penda for free</p>
         </div>
 
-        <div className="glass-strong rounded-2xl p-8 shadow-glass">
+        <div className="auth-card">
           {error && (
             <motion.div
-              className="mb-5 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
+              className="mb-5 px-4 py-3 rounded-lg text-sm"
+              style={{
+                background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.2)",
+                color: "#f87171",
+              }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
@@ -100,11 +117,13 @@ export default function SignupPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {/* Full name */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="fullname" className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+              <label htmlFor="fullname" className="text-xs font-semibold uppercase tracking-widest"
+                style={{ color: "var(--text-tertiary)" }}>
                 Full Name
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                  style={{ color: "var(--text-tertiary)" }} />
                 <input
                   id="fullname"
                   type="text"
@@ -119,11 +138,13 @@ export default function SignupPage() {
 
             {/* Email */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="email" className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+              <label htmlFor="email" className="text-xs font-semibold uppercase tracking-widest"
+                style={{ color: "var(--text-tertiary)" }}>
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                  style={{ color: "var(--text-tertiary)" }} />
                 <input
                   id="email"
                   type="email"
@@ -139,11 +160,13 @@ export default function SignupPage() {
 
             {/* Password */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="password" className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
-                Password <span className="text-zinc-600 normal-case">(min. 8 chars)</span>
+              <label htmlFor="password" className="text-xs font-semibold uppercase tracking-widest"
+                style={{ color: "var(--text-tertiary)" }}>
+                Password <span className="normal-case font-normal" style={{ color: "var(--border-strong)" }}>(min. 8 chars)</span>
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                  style={{ color: "var(--text-tertiary)" }} />
                 <input
                   id="password"
                   type={showPw ? "text" : "password"}
@@ -158,7 +181,9 @@ export default function SignupPage() {
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: "var(--text-tertiary)" }}
+                  aria-label={showPw ? "Hide password" : "Show password"}
                 >
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -175,8 +200,8 @@ export default function SignupPage() {
                           i < Math.min(4, Math.floor(password.length / 3))
                             ? password.length < 8
                               ? "#f59e0b"
-                              : "#7c3aed"
-                            : "#27272a",
+                              : "var(--lime)"
+                            : "var(--bg-elevated)",
                       }}
                     />
                   ))}
@@ -188,19 +213,22 @@ export default function SignupPage() {
               id="signup-submit"
               type="submit"
               disabled={loading}
-              className="btn-primary w-full mt-2 flex items-center justify-center gap-2 h-11"
+              className="w-full mt-2 btn-lime flex items-center justify-center gap-2"
+              style={{ borderRadius: "var(--radius-md)", height: 44 }}
             >
               {loading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
               ) : (
                 "Create Account"
               )}
             </button>
           </form>
 
-          <p className="text-center text-zinc-500 text-sm mt-6">
+          <p className="text-center text-sm mt-6" style={{ color: "var(--text-tertiary)" }}>
             Already have an account?{" "}
-            <Link href="/auth/login" className="text-penda-400 hover:text-penda-300 font-medium transition-colors">
+            <Link href="/auth/login"
+              className="font-medium transition-colors"
+              style={{ color: "var(--lime)" }}>
               Sign in
             </Link>
           </p>

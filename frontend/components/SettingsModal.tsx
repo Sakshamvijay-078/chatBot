@@ -177,12 +177,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
           onClick={(e) => e.target === e.currentTarget && onClose()}
         >
           <motion.div
-            className="w-full max-w-lg mx-4 overflow-hidden"
-            style={{
-              background: "#161616",
-              border: "1px solid #2A2A2A",
-              borderRadius: 12,
-            }}
+            className="settings-modal"
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -231,8 +226,8 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               ))}
             </div>
 
-            {/* Content */}
-            <div className="px-6 py-5 overflow-y-auto" style={{ minHeight: 300, maxHeight: "60vh" }}>
+            {/* Content — scrollable, adapts to screen height */}
+            <div className="px-5 py-5 overflow-y-auto flex-1" style={{ minHeight: 260 }}>
               <AnimatePresence mode="wait">
 
                 {/* ── Profile ── */}

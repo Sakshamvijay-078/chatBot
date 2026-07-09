@@ -34,11 +34,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated background blobs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-purple-900/30 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-900/25 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: "1.5s" }} />
+    <div className="auth-page">
+      {/* Ambient background glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl"
+          style={{ background: "rgba(200, 243, 29, 0.05)", animation: "limePulse 4s ease-in-out infinite" }} />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full blur-3xl"
+          style={{ background: "rgba(200, 243, 29, 0.03)", animation: "limePulse 4s ease-in-out infinite 1.5s" }} />
       </div>
 
       <motion.div
@@ -51,22 +53,27 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <motion.div
             className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-            style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+            style={{ background: "var(--lime)" }}
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.4 }}
           >
-            <Sparkles className="w-7 h-7 text-white" />
+            <Sparkles className="w-7 h-7 text-[#0A0A0A]" />
           </motion.div>
-          <h1 className="text-2xl font-bold text-white mb-1">Welcome back</h1>
-          <p className="text-zinc-400 text-sm">Sign in to your Penda account</p>
+          <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>Welcome back</h1>
+          <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>Sign in to your Penda account</p>
         </div>
 
         {/* Card */}
-        <div className="glass-strong rounded-2xl p-8 shadow-glass">
+        <div className="auth-card">
           {error && (
             <motion.div
-              className="mb-5 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
+              className="mb-5 px-4 py-3 rounded-lg text-sm"
+              style={{
+                background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.2)",
+                color: "#f87171",
+              }}
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
             >
@@ -77,11 +84,13 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {/* Email */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="email" className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+              <label htmlFor="email" className="text-xs font-semibold uppercase tracking-widest"
+                style={{ color: "var(--text-tertiary)" }}>
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                  style={{ color: "var(--text-tertiary)" }} />
                 <input
                   id="email"
                   type="email"
@@ -98,18 +107,21 @@ export default function LoginPage() {
             {/* Password */}
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between items-center">
-                <label htmlFor="password" className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                <label htmlFor="password" className="text-xs font-semibold uppercase tracking-widest"
+                  style={{ color: "var(--text-tertiary)" }}>
                   Password
                 </label>
                 <Link
                   href="/auth/forgot-password"
-                  className="text-xs text-penda-400 hover:text-penda-300 transition-colors"
+                  className="text-xs transition-colors"
+                  style={{ color: "var(--lime)" }}
                 >
                   Forgot password?
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                  style={{ color: "var(--text-tertiary)" }} />
                 <input
                   id="password"
                   type={showPw ? "text" : "password"}
@@ -123,7 +135,9 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: "var(--text-tertiary)" }}
+                  aria-label={showPw ? "Hide password" : "Show password"}
                 >
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -134,19 +148,22 @@ export default function LoginPage() {
               id="login-submit"
               type="submit"
               disabled={loading}
-              className="btn-primary w-full mt-2 flex items-center justify-center gap-2 h-11"
+              className="w-full mt-2 btn-lime flex items-center justify-center gap-2"
+              style={{ borderRadius: "var(--radius-md)", height: 44 }}
             >
               {loading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
               ) : (
                 "Sign In"
               )}
             </button>
           </form>
 
-          <p className="text-center text-zinc-500 text-sm mt-6">
+          <p className="text-center text-sm mt-6" style={{ color: "var(--text-tertiary)" }}>
             Don&apos;t have an account?{" "}
-            <Link href="/auth/signup" className="text-penda-400 hover:text-penda-300 font-medium transition-colors">
+            <Link href="/auth/signup"
+              className="font-medium transition-colors"
+              style={{ color: "var(--lime)" }}>
               Create one
             </Link>
           </p>

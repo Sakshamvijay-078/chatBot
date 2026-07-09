@@ -7,7 +7,9 @@ import {
   Eye, Download, ChevronDown,
 } from "lucide-react";
 import clsx from "clsx";
-import { PendingDocument } from "@/types";
+import { PendingDocument, Document as AppDocument } from "@/types";
+import { listDocuments } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 /* ── Spring presets ────────────────────────────────────────── */
 const SPRING_POP = { type: "spring" as const, stiffness: 360, damping: 22, mass: 0.7 };
@@ -140,6 +142,7 @@ export default function ChatInput({
   isStreaming,
   disabled,
 }: ChatInputProps) {
+  const { session } = useAuth();
   const [value,       setValue]       = useState("");
   const [pendingDoc,  setPendingDoc]  = useState<PendingDocument | null>(null);
   const [fileError,   setFileError]   = useState<string | null>(null);
@@ -148,6 +151,16 @@ export default function ChatInput({
   const [mode,        setMode]        = useState<Mode>("Fast");
   const [modeOpen,    setModeOpen]    = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // PDF read/extract state
+
+  const [docs, setDocs] = useState<AppDocument[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  useEffect(() => {
+    if (session?.access_token) {
+      listDocuments(session.access_token).then(setDocs).catch(console.error);
+    }
+  }, [session]);
 
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,8 +174,19 @@ export default function ChatInput({
   }
 
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setValue(e.target.value);
+    const val = e.target.value;
+    setValue(val);
     autoResize();
+
+    const cursor = e.target.selectionStart;
+    const textBefore = val.slice(0, cursor);
+    const match = textBefore.match(/(?:^|\s)@([^ ]*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionIndex(0);
+    } else {
+      setMentionQuery(null);
+    }
   }
 
   function handleSubmit(e?: React.FormEvent) {
@@ -178,7 +202,41 @@ export default function ChatInput({
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   }
 
+  function insertMention(name: string) {
+    const cursor = textareaRef.current?.selectionStart || value.length;
+    const textBefore = value.slice(0, cursor);
+    const textAfter = value.slice(cursor);
+    const textBeforeMatch = textBefore.replace(/(?:^|\s)@[^ ]*$/, (m) => m.startsWith(" ") ? " @" : "@");
+    const newVal = textBeforeMatch + name + " " + textAfter;
+    setValue(newVal);
+    setMentionQuery(null);
+    setTimeout(autoResize, 0);
+    textareaRef.current?.focus();
+  }
+
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionQuery !== null) {
+      const filtered = docs.filter(d => d.name.toLowerCase().includes(mentionQuery.toLowerCase()));
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex(prev => Math.min(prev + 1, filtered.length - 1));
+        return;
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex(prev => Math.max(prev - 1, 0));
+        return;
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (filtered.length > 0) {
+          insertMention(filtered[mentionIndex].name);
+        }
+        return;
+      } else if (e.key === "Escape") {
+        setMentionQuery(null);
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
   }
 
@@ -370,6 +428,46 @@ export default function ChatInput({
             >
               <X className="w-4 h-4" />
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mention popover */}
+      <AnimatePresence>
+        {mentionQuery !== null && (
+          <motion.div
+            className="absolute z-10 w-64 rounded-xl overflow-hidden shadow-lg"
+            style={{
+              background: "#161616",
+              border: "1px solid #2A2A2A",
+              bottom: "100%",
+              marginBottom: 8,
+              left: 16,
+            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+          >
+            {docs.filter(d => d.name.toLowerCase().includes(mentionQuery.toLowerCase())).length === 0 ? (
+              <div className="px-3 py-2 text-xs" style={{ color: "#9A9A9A" }}>No documents found</div>
+            ) : (
+              docs.filter(d => d.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5).map((d, i) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => insertMention(d.name)}
+                  className="w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2"
+                  style={{
+                    background: i === mentionIndex ? "rgba(200,243,29,0.1)" : "transparent",
+                    color: i === mentionIndex ? "#C8F31D" : "#F5F5F5",
+                  }}
+                  onMouseEnter={() => setMentionIndex(i)}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="truncate">{d.name}</span>
+                </button>
+              ))
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -63,9 +63,9 @@ function MessageBubble({ message }: { message: Message }) {
       {!isUser && (
         <div
           className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center mt-0.5"
-          style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+          style={{ background: "#C8F31D" }}
         >
-          <Sparkles className="w-4 h-4 text-white" />
+          <Sparkles className="w-4 h-4 text-[#0A0A0A]" />
         </div>
       )}
 
@@ -74,8 +74,8 @@ function MessageBubble({ message }: { message: Message }) {
           className={`relative px-4 py-3.5 text-sm leading-relaxed ${isUser ? "rounded-2xl rounded-tr-md text-white" : "rounded-2xl rounded-tl-md text-zinc-100"}`}
           style={
             isUser
-              ? { background: "linear-gradient(135deg, #7c3aed, #4f46e5)", boxShadow: "0 4px 20px rgba(124,58,237,0.28)" }
-              : { background: "rgba(20,20,25,0.78)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(8px)" }
+              ? { background: "#1F1F1F", border: "1px solid #2A2A2A" }
+              : { background: "transparent" }
           }
         >
           {isUser ? (
@@ -144,7 +144,7 @@ function MessageBubble({ message }: { message: Message }) {
       </div>
 
       {isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center mt-0.5 bg-zinc-800 border border-white/[0.07]">
+        <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center mt-0.5 bg-[#1F1F1F] border border-[#2A2A2A]">
           <User className="w-4 h-4 text-zinc-300" />
         </div>
       )}
@@ -184,14 +184,14 @@ export default function SharePage() {
       {/* Header */}
       <header
         className="sticky top-0 z-10 px-4 py-3.5"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(9,9,11,0.9)", backdropFilter: "blur(16px)" }}
+        style={{ borderBottom: "1px solid #1F1F1F", background: "#0A0A0A" }}
       >
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+            style={{ background: "#C8F31D" }}
           >
-            <Sparkles className="w-3.5 h-3.5 text-white" />
+            <Sparkles className="w-3.5 h-3.5 text-[#0A0A0A]" />
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-semibold text-white truncate">{title}</h1>
@@ -199,8 +199,8 @@ export default function SharePage() {
           </div>
           <a
             href="/"
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition-colors"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid #2A2A2A", color: "#C8F31D" }}
           >
             Try Penda
           </a>
@@ -211,7 +211,7 @@ export default function SharePage() {
       <main className="max-w-3xl mx-auto px-4 py-8">
         {loading && (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <Loader2 className="w-7 h-7 text-penda-400 animate-spin" />
+            <Loader2 className="w-7 h-7 animate-spin" style={{ color: "#C8F31D" }} />
             <p className="text-sm text-zinc-500">Loading conversation…</p>
           </div>
         )}
@@ -234,8 +234,8 @@ export default function SharePage() {
             </div>
             <a
               href="/"
-              className="mt-2 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all"
-              style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+              className="mt-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+              style={{ background: "#C8F31D", color: "#0A0A0A" }}
             >
               Go to Penda
             </a>

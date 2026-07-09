@@ -84,11 +84,11 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: "#0A0A0A" }}>
       {/* Background blobs */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-violet-900/25 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-900/20 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl animate-pulse-slow" style={{ background: "rgba(200, 243, 29, 0.05)" }} />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full blur-3xl animate-pulse-slow" style={{ background: "rgba(200, 243, 29, 0.03)" }} />
       </div>
 
       <motion.div
@@ -101,15 +101,15 @@ export default function ResetPasswordPage() {
         <div className="text-center mb-8">
           <div
             className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-            style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+            style={{ background: "#C8F31D" }}
           >
-            <Sparkles className="w-7 h-7 text-white" />
+            <Sparkles className="w-7 h-7 text-[#0A0A0A]" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">Set New Password</h1>
           <p className="text-zinc-400 text-sm">Choose a strong new password for your account</p>
         </div>
 
-        <div className="glass-strong rounded-2xl p-8 shadow-glass">
+        <div className="rounded-2xl p-8" style={{ background: "#161616", border: "1px solid #2A2A2A" }}>
           {/* Loading state */}
           {pageState === "loading" && (
             <div className="flex flex-col items-center gap-3 py-8">
@@ -128,7 +128,7 @@ export default function ResetPasswordPage() {
               </p>
               <button
                 onClick={() => router.push("/auth/forgot-password")}
-                className="btn-primary w-full"
+                className="w-full h-11 flex items-center justify-center rounded-lg text-sm font-bold transition-all" style={{ background: "#C8F31D", color: "#0A0A0A" }}
               >
                 Request New Link
               </button>
@@ -213,10 +213,10 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={submitting || password !== confirmPw || password.length < 8}
-                className="btn-primary h-11 flex items-center justify-center gap-2 mt-1"
+                className="w-full h-11 flex items-center justify-center gap-2 mt-1 rounded-lg text-sm font-bold transition-all" style={{ background: "#C8F31D", color: "#0A0A0A" }}
               >
                 {submitting ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                 ) : (
                   "Update Password"
                 )}

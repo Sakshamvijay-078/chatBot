@@ -26,7 +26,9 @@ function authHeaders(token: string): HeadersInit {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `HTTP ${res.status}`);
+    const err = new Error(body.detail ?? `HTTP ${res.status}`);
+    (err as any).status = res.status;
+    throw err;
   }
   return res.json() as Promise<T>;
 }
@@ -47,8 +49,12 @@ export async function withRetry<T>(
   for (let i = 0; i < maxAttempts; i++) {
     try {
       return await fn();
-    } catch (err) {
+    } catch (err: any) {
       lastErr = err;
+      // Fail fast on auth errors
+      if (err?.status === 401 || err?.status === 403) {
+        throw err;
+      }
       if (i < maxAttempts - 1) {
         const delay = 500 * Math.pow(2, i);
         console.warn(`[retry] ${label} failed (attempt ${i + 1}/${maxAttempts}), retrying in ${delay}ms:`, err);

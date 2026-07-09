@@ -86,8 +86,8 @@ function CandidateCard({ candidate, onSelect, onDelete }: {
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.2)" }}>
-            <Users className="w-4 h-4 text-penda-400" />
+            style={{ background: "rgba(200,243,29,0.12)", border: "1px solid rgba(200,243,29,0.2)" }}>
+            <Users className="w-4 h-4 text-[#C8F31D]" />
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium text-white truncate">{candidate.name || "Unknown Candidate"}</p>
@@ -241,7 +241,7 @@ function CandidateDetailPanel({ candidate, onBack, onStatusChange }: {
       <div className="p-4">
         <p className="text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wider">Optimized Bullet Points</p>
         <div className="p-3.5 rounded-xl text-sm text-zinc-200 leading-relaxed"
-          style={{ background: "rgba(124,58,237,0.05)", border: "1px solid rgba(124,58,237,0.15)" }}>
+          style={{ background: "rgba(200,243,29,0.05)", border: "1px solid rgba(200,243,29,0.15)" }}>
           <div className="prose-penda">
             <ReactMarkdown>{candidate.refined_bullets}</ReactMarkdown>
           </div>
@@ -340,19 +340,19 @@ export default function ATSDashboard() {
   }
 
   return (
-    <div className="flex h-full" style={{ background: "#09090b" }}>
+    <div className="ats-layout">
 
       {/* Left: Analyze Panel */}
-      <div className="flex-1 flex flex-col overflow-hidden" style={{ borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="ats-left-pane">
         {/* Tabs */}
         <div className="flex items-center gap-1 p-4 pb-0">
           {(["analyze", "candidates"] as const).map((t) => (
             <button key={t} onClick={() => { setTab(t); if (t === "candidates") handleLoadCandidates(); }}
               className="px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all"
               style={{
-                background: tab === t ? "rgba(124,58,237,0.15)" : "transparent",
-                color: tab === t ? "#c4b5fd" : "#71717a",
-                border: tab === t ? "1px solid rgba(124,58,237,0.25)" : "1px solid transparent",
+                background: tab === t ? "rgba(200,243,29,0.15)" : "transparent",
+                color: tab === t ? "#C8F31D" : "#71717a",
+                border: tab === t ? "1px solid rgba(200,243,29,0.25)" : "1px solid transparent",
               }}>
               {t === "analyze" ? "Analyze Resume" : "Candidates"}
             </button>
@@ -371,8 +371,8 @@ export default function ATSDashboard() {
                   <div {...getRootProps()}
                     className="relative p-6 rounded-xl border-2 border-dashed text-center cursor-pointer transition-all"
                     style={{
-                      borderColor: isDragActive ? "rgba(124,58,237,0.6)" : "rgba(255,255,255,0.1)",
-                      background: isDragActive ? "rgba(124,58,237,0.05)" : "rgba(255,255,255,0.02)",
+                      borderColor: isDragActive ? "rgba(200,243,29,0.6)" : "rgba(255,255,255,0.1)",
+                      background: isDragActive ? "rgba(200,243,29,0.05)" : "rgba(255,255,255,0.02)",
                     }}>
                     <input {...getInputProps()} />
                     {uploading ? (
@@ -389,7 +389,7 @@ export default function ATSDashboard() {
                     ) : (
                       <div className="flex flex-col items-center gap-2">
                         <Upload className="w-6 h-6 text-zinc-500" />
-                        <p className="text-sm text-zinc-400">Drop resume here or <span className="text-penda-400">browse</span></p>
+                        <p className="text-sm text-zinc-400">Drop resume here or <span style={{ color: "#C8F31D" }}>browse</span></p>
                         <p className="text-xs text-zinc-600">PDF, TXT — max 20 MB</p>
                       </div>
                     )}
@@ -398,29 +398,29 @@ export default function ATSDashboard() {
 
                 {/* Or paste text */}
                 <div>
-                  <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider mb-2 block">Or paste resume text</label>
+                  <label className="text-xs font-medium uppercase tracking-wider mb-2 block" style={{ color: "var(--text-secondary)" }}>Or paste resume text</label>
                   <textarea
                     value={resumeText}
                     onChange={(e) => setResumeText(e.target.value)}
                     placeholder="Paste resume content here…"
-                    rows={6}
-                    className="w-full px-3.5 py-3 rounded-xl text-sm text-zinc-200 placeholder-zinc-600 resize-none outline-none transition-all"
-                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    rows={5}
+                    className="input-base resize-none"
+                    style={{ minHeight: 100 }}
                   />
                 </div>
 
                 {/* Job description */}
                 <div>
-                  <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <label className="text-xs font-medium uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: "var(--text-secondary)" }}>
                     <Briefcase className="w-3 h-3" /> Job Description
                   </label>
                   <textarea
                     value={jobDesc}
                     onChange={(e) => setJobDesc(e.target.value)}
                     placeholder="Paste the job description here…"
-                    rows={6}
-                    className="w-full px-3.5 py-3 rounded-xl text-sm text-zinc-200 placeholder-zinc-600 resize-none outline-none transition-all"
-                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    rows={5}
+                    className="input-base resize-none"
+                    style={{ minHeight: 100 }}
                   />
                 </div>
 
@@ -436,9 +436,9 @@ export default function ATSDashboard() {
                   onClick={handleAnalyze}
                   disabled={analyzing || !resumeText.trim() || !jobDesc.trim()}
                   whileTap={{ scale: 0.97 }}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
-                  style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)", boxShadow: "0 4px 20px rgba(124,58,237,0.3)" }}>
-                  {analyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</> : <><Target className="w-4 h-4" /> Analyze with ATS AI</>}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-all"
+                  style={{ background: "#C8F31D", color: "#0A0A0A" }}>
+                  {analyzing ? <><Loader2 className="w-4 h-4 animate-spin text-[#0A0A0A]" /> Analyzing…</> : <><Target className="w-4 h-4" /> Analyze with ATS AI</>}
                 </motion.button>
               </motion.div>
             ) : (
@@ -467,7 +467,7 @@ export default function ATSDashboard() {
       </div>
 
       {/* Right: Results / Detail Panel */}
-      <div className="w-[45%] flex flex-col overflow-hidden">
+      <div className="ats-right-pane">
         <AnimatePresence mode="wait">
           {selectedCandidate ? (
             <CandidateDetailPanel key="detail"
@@ -479,18 +479,18 @@ export default function ATSDashboard() {
               initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={SPRING}>
               <div className="p-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-penda-400" />
+                  <Sparkles className="w-4 h-4" style={{ color: "#C8F31D" }} />
                   <h2 className="text-sm font-semibold text-white">ATS Analysis Results</h2>
                 </div>
               </div>
               <div className="p-4 space-y-4 flex-1">
-                <div className="p-3.5 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="p-3.5 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid rgba(255,255,255,0.07)" }}>
                   <p className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-2">Critique</p>
                   <div className="text-sm text-zinc-300 prose-penda"><ReactMarkdown>{result.critique}</ReactMarkdown></div>
                 </div>
-                <div className="p-3.5 rounded-xl" style={{ background: "rgba(124,58,237,0.05)", border: "1px solid rgba(124,58,237,0.15)" }}>
-                  <p className="text-xs text-penda-400 uppercase tracking-wider font-medium mb-2">Optimized Bullets</p>
-                  <div className="text-sm text-zinc-200 prose-penda"><ReactMarkdown>{result.refined_bullets}</ReactMarkdown></div>
+                <div className="p-3.5 rounded-xl" style={{ background: "rgba(200,243,29,0.05)", border: "1px solid rgba(200,243,29,0.15)" }}>
+                   <p className="text-xs uppercase tracking-wider font-medium mb-2" style={{ color: "var(--lime)" }}>Optimized Bullets</p>
+                   <div className="text-sm prose-penda" style={{ color: "var(--text-primary)" }}><ReactMarkdown>{result.refined_bullets}</ReactMarkdown></div>
                 </div>
               </div>
             </motion.div>
@@ -498,8 +498,8 @@ export default function ATSDashboard() {
             <motion.div key="empty" className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                style={{ background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.15)" }}>
-                <Target className="w-7 h-7 text-penda-400" />
+                style={{ background: "rgba(200,243,29,0.08)", border: "1px solid rgba(200,243,29,0.15)" }}>
+                <Target className="w-7 h-7" style={{ color: "#C8F31D" }} />
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-white mb-1">ATS Results</h3>

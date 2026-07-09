@@ -223,7 +223,7 @@ export default function Sidebar({
                   <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
                     <button
                       onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === chat.id ? null : chat.id); }}
-                      className="w-6 h-6 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="w-6 h-6 rounded-md flex items-center justify-center opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"
                       style={{ color: "#555" }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = "#2A2A2A"; e.currentTarget.style.color = "#F5F5F5"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#555"; }}

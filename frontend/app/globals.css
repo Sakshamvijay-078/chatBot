@@ -4,7 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design Tokens ───────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════ */
+/* DESIGN TOKENS — single source of truth for all sections    */
+/* ═══════════════════════════════════════════════════════════ */
 :root {
   /* Backgrounds */
   --bg-base:         #0A0A0A;
@@ -22,7 +24,7 @@
   --text-secondary:  #9A9A9A;
   --text-tertiary:   #555555;
 
-  /* Accent: neon lime */
+  /* Accent: neon lime — used consistently everywhere */
   --lime:            #C8F31D;
   --lime-dim:        rgba(200, 243, 29, 0.12);
   --lime-border:     rgba(200, 243, 29, 0.35);
@@ -31,12 +33,18 @@
   --radius-sm:       6px;
   --radius-md:       9px;
   --radius-lg:       12px;
+  --radius-xl:       16px;
 
   /* Transitions */
   --ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
 
+  /* Scrollbar */
   --scrollbar-w:     3px;
+
+  /* Layout breakpoints (used in JS via CSS var if needed) */
+  --sidebar-w:       260px;
+  --sidebar-collapsed-w: 56px;
 }
 
 /* ── Reset ───────────────────────────────────────────────── */
@@ -55,6 +63,8 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Prevent horizontal scroll on mobile */
+  overflow-x: hidden;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────── */
@@ -142,7 +152,7 @@ html, body {
 }
 
 /* ─────────────────────────────────────────────────────────── */
-/* DECORATIVE ASTERISK MARKS — sparse background motif         */
+/* DECORATIVE ASTERISK MARKS                                   */
 /* ─────────────────────────────────────────────────────────── */
 .asterisk-mark {
   position: absolute;
@@ -170,26 +180,27 @@ html, body {
 }
 
 /* ─────────────────────────────────────────────────────────── */
-/* INPUT BASE                                                  */
+/* INPUT BASE — unified across auth, settings, ATS            */
 /* ─────────────────────────────────────────────────────────── */
 .input-base {
-  background: var(--bg-panel);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-hair);
   color: var(--text-primary);
   border-radius: var(--radius-md);
   padding: 10px 14px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.18s var(--ease-out);
+  transition: border-color 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out);
   width: 100%;
 }
 .input-base::placeholder { color: var(--text-tertiary); }
 .input-base:focus {
   border-color: var(--lime);
+  box-shadow: 0 0 0 3px rgba(200, 243, 29, 0.08);
 }
 
 /* ─────────────────────────────────────────────────────────── */
-/* BUTTON VARIANTS                                             */
+/* BUTTON VARIANTS — unified lime & ghost across all pages    */
 /* ─────────────────────────────────────────────────────────── */
 .btn-lime {
   background: var(--lime);
@@ -202,6 +213,8 @@ html, body {
   cursor: pointer;
   transition: opacity 0.15s, transform 0.15s var(--ease-spring);
   letter-spacing: 0.01em;
+  /* Prevent text overflow on small screens */
+  white-space: nowrap;
 }
 .btn-lime:hover:not(:disabled) {
   opacity: 0.9;
@@ -220,11 +233,14 @@ html, body {
   font-weight: 500;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
 }
 .btn-ghost:hover {
   border-color: var(--border-strong);
   color: var(--text-primary);
+  background: var(--bg-hover);
 }
+.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ─────────────────────────────────────────────────────────── */
 /* SIDEBAR ITEM — active state lime left border                */
@@ -243,6 +259,8 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Accessible tap area on mobile */
+  min-height: 40px;
 }
 .sidebar-item:hover {
   background: var(--bg-hover);
@@ -263,13 +281,12 @@ html, body {
 }
 
 /* ─────────────────────────────────────────────────────────── */
-/* MARKDOWN PROSE — editorial penda theme                      */
+/* MARKDOWN PROSE — unified penda theme                        */
 /* ─────────────────────────────────────────────────────────── */
 .prose-penda {
   color: var(--text-primary);
   font-size: 14.5px;
   line-height: 1.8;
-  /* Prevent overflow on all screen sizes */
   max-width: 100%;
   overflow-wrap: break-word;
   word-break: break-word;
@@ -312,7 +329,6 @@ html, body {
   max-width: 100%;
   margin: 1rem 0;
 }
-/* Make syntax highlighted code blocks scroll horizontally, never overflow parent */
 .prose-penda pre > div {
   max-width: 100%;
   overflow-x: auto;
@@ -376,16 +392,49 @@ html, body {
 }
 
 /* ─────────────────────────────────────────────────────────── */
-/* MODAL OVERLAY                                               */
+/* MODAL OVERLAY — consistent across all modals               */
 /* ─────────────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.75);
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 50;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px; /* prevent modal from touching edges on small screens */
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* AUTH CARD — shared by login, signup, forgot, reset         */
+/* ─────────────────────────────────────────────────────────── */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--bg-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hair);
+  border-radius: var(--radius-xl);
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 420px;
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 24px 20px;
+    border-radius: var(--radius-lg);
+  }
 }
 
 /* ─────────────────────────────────────────────────────────── */
@@ -419,7 +468,7 @@ html, body {
   background: var(--bg-panel);
   border: 1px solid var(--border-hair);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 14px;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   text-align: left;
@@ -465,7 +514,7 @@ html, body {
 }
 
 /* ─────────────────────────────────────────────────────────── */
-/* GENERIC FADE-UP ANIMATION                                   */
+/* ANIMATIONS                                                  */
 /* ─────────────────────────────────────────────────────────── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(14px); }
@@ -473,9 +522,6 @@ html, body {
 }
 .fade-up { animation: fadeUp 0.4s var(--ease-out) both; }
 
-/* ─────────────────────────────────────────────────────────── */
-/* SLIDE IN FROM LEFT                                          */
-/* ─────────────────────────────────────────────────────────── */
 @keyframes slideInLeft {
   from { opacity: 0; transform: translateX(-14px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -483,7 +529,7 @@ html, body {
 .slide-in-left { animation: slideInLeft 0.3s var(--ease-out) both; }
 
 /* ─────────────────────────────────────────────────────────── */
-/* SIDEBAR ITEM LABEL — overflow handling                      */
+/* SIDEBAR ITEM LABEL                                          */
 /* ─────────────────────────────────────────────────────────── */
 .sidebar-item-label {
   overflow: hidden;
@@ -520,4 +566,110 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* ATS LAYOUT — responsive two-pane                           */
+/* ─────────────────────────────────────────────────────────── */
+.ats-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #09090b;
+}
+
+@media (min-width: 768px) {
+  .ats-layout {
+    flex-direction: row;
+  }
+}
+
+.ats-left-pane {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: none;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  /* On mobile: 50% of viewport height */
+  height: 50vh;
+}
+
+.ats-right-pane {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 50vh;
+}
+
+@media (min-width: 768px) {
+  .ats-left-pane {
+    width: 55%;
+    height: auto;
+    border-right: 1px solid rgba(255,255,255,0.06);
+    border-bottom: none;
+  }
+  .ats-right-pane {
+    width: 45%;
+    height: auto;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* MOBILE HEADER BAR — hamburger + title for chat page        */
+/* ─────────────────────────────────────────────────────────── */
+.mobile-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-hair);
+  background: var(--bg-base);
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .mobile-header {
+    display: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* SETTINGS MODAL — responsive sizing                          */
+/* ─────────────────────────────────────────────────────────── */
+.settings-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hair);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 500px;
+  /* Full height on very small screens */
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* RESPONSIVE UTILITY — safe tap targets on mobile            */
+/* ─────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .btn-lime,
+  .btn-ghost {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .input-base {
+    font-size: 16px; /* Prevents iOS auto-zoom on input focus */
+  }
+
+  select.input-base,
+  textarea.input-base {
+    font-size: 16px;
+  }
 }

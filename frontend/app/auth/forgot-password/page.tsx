@@ -23,7 +23,11 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: "#0A0A0A" }}>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl animate-pulse-slow" style={{ background: "rgba(200, 243, 29, 0.05)" }} />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full blur-3xl animate-pulse-slow" style={{ background: "rgba(200, 243, 29, 0.03)", animationDelay: "1.5s" }} />
+      </div>
       <motion.div
         className="w-full max-w-md"
         initial={{ opacity: 0, y: 20 }}
@@ -32,22 +36,22 @@ export default function ForgotPasswordPage() {
       >
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-            style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}>
-            <Sparkles className="w-7 h-7 text-white" />
+            style={{ background: "#C8F31D" }}>
+            <Sparkles className="w-7 h-7 text-[#0A0A0A]" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">Reset Password</h1>
           <p className="text-zinc-400 text-sm">Enter your email and we&apos;ll send a reset link</p>
         </div>
 
-        <div className="glass-strong rounded-2xl p-8 shadow-glass">
+        <div className="rounded-2xl p-8" style={{ background: "#161616", border: "1px solid #2A2A2A" }}>
           {sent ? (
             <motion.div className="text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="text-3xl mb-3">📬</div>
               <p className="text-zinc-300 text-sm">
-                If <span className="text-penda-400">{email}</span> has an account, a reset link is on its way.
+                If <span style={{ color: "#C8F31D" }}>{email}</span> has an account, a reset link is on its way.
               </p>
               <Link href="/auth/login">
-                <button className="btn-primary w-full mt-5">Back to Sign In</button>
+                <button className="w-full mt-5 h-11 flex items-center justify-center rounded-lg text-sm font-bold transition-all" style={{ background: "#C8F31D", color: "#0A0A0A" }}>Back to Sign In</button>
               </Link>
             </motion.div>
           ) : (
@@ -66,11 +70,11 @@ export default function ForgotPasswordPage() {
                   />
                 </div>
               </div>
-              <button type="submit" disabled={loading} className="btn-primary h-11 flex items-center justify-center">
-                {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Send Reset Link"}
+              <button type="submit" disabled={loading} className="w-full h-11 flex items-center justify-center rounded-lg text-sm font-bold transition-all" style={{ background: "#C8F31D", color: "#0A0A0A" }}>
+                {loading ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : "Send Reset Link"}
               </button>
               <p className="text-center text-zinc-500 text-sm">
-                <Link href="/auth/login" className="text-penda-400 hover:text-penda-300">
+                <Link href="/auth/login" className="font-medium transition-colors" style={{ color: "#C8F31D" }}>
                   ← Back to Sign In
                 </Link>
               </p>

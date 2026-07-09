@@ -37,8 +37,8 @@ const AuthContext = createContext<AuthContextValue>({
   session: null,
   profile: null,
   loading: true,
-  signOut: async () => {},
-  refreshProfile: async () => {},
+  signOut: async () => { },
+  refreshProfile: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,10 +57,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const p = await getProfile(token);
       setProfile(p);
-    } catch {
+    } catch (error: any) {
       setProfile(null);
       // Reset so a retry is possible on next login
       lastFetchedUserId.current = null;
+      
+      // If the backend rejects our token, force a sign out to clear the bad state
+      if (error?.status === 401 || error?.status === 403) {
+        try {
+          await supabase.auth.signOut();
+        } catch (e) {
+          // Force clear local storage if Supabase API fails
+          localStorage.clear();
+          window.location.reload();
+        }
+      }
     }
   }, []);
 
