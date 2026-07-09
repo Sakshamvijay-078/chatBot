@@ -11,7 +11,11 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    # Use 1 uvicorn worker on the free-tier instance (512 MB RAM).
+    # Multiple workers each load the full model + LangGraph graph into RAM,
+    # which easily exceeds the free-tier limit and triggers OOM restarts.
+    # A single async worker handles concurrent requests fine via the event loop.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --loop asyncio
     plan: free
 
     # System packages installed by Render before pip (requires root — do NOT
@@ -43,3 +47,11 @@ services:
         value: INFO
       - key: RENDER_EXTERNAL_URL
         sync: false  # Set this to your Render backend URL, e.g. https://penda-backend.onrender.com
+      # Python GC tuning for low-memory environments.
+      # Reduce the threshold at which GC runs to avoid large heap buildups.
+      - key: PYTHONGC
+        value: "700,10,10"
+      # Disable Python's hash randomization for reproducible caching behaviour
+      # (harmless for this workload, helps lru_cache be more predictable)
+      - key: PYTHONHASHSEED
+        value: "0"

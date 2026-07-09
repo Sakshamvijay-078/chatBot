@@ -80,8 +80,12 @@ def calculator(expression: str) -> str:
 
 
 import time as _time
-_search_cache: dict[str, tuple[str, float]] = {}
+from collections import OrderedDict
+
+# Bounded LRU search cache — hard cap at 100 entries to prevent memory growth
+_SEARCH_CACHE_MAX = 100
 _SEARCH_CACHE_TTL = 300  # 5 minutes
+_search_cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
 
 @tool(description="Search the web using DuckDuckGo and return top results with their source URLs. Use this when you need current information or facts you don't know. Combine multiple sub-questions into ONE query whenever possible.")
 def web_search(query: str) -> str:
@@ -93,7 +97,12 @@ def web_search(query: str) -> str:
     if cache_key in _search_cache:
         cached_result, ts = _search_cache[cache_key]
         if _time.monotonic() - ts < _SEARCH_CACHE_TTL:
+            # Move to end (LRU touch)
+            _search_cache.move_to_end(cache_key)
             return f"[cached] {cached_result}"
+        else:
+            # Expired — evict
+            del _search_cache[cache_key]
 
     try:
         with DDGS() as ddgs:
@@ -109,13 +118,17 @@ def web_search(query: str) -> str:
             lines.append(f"[{i}] {title}\nURL: {url}\n{body}")
         output = "\n\n".join(lines)
 
-        # Cache the result
-        _search_cache[cache_key] = (output, _time.monotonic())
-        # Evict old entries if cache grows too large
-        if len(_search_cache) > 200:
-            oldest = sorted(_search_cache, key=lambda k: _search_cache[k][1])[:50]
-            for k in oldest:
-                del _search_cache[k]
+        # Evict expired entries first, then enforce size cap via LRU
+        now = _time.monotonic()
+        expired = [k for k, (_, ts) in _search_cache.items() if now - ts >= _SEARCH_CACHE_TTL]
+        for k in expired:
+            del _search_cache[k]
+
+        # If still at cap, drop the oldest entry
+        while len(_search_cache) >= _SEARCH_CACHE_MAX:
+            _search_cache.popitem(last=False)
+
+        _search_cache[cache_key] = (output, now)
 
         return output
     except Exception as e:

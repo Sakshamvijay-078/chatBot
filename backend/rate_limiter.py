@@ -1,23 +1,45 @@
 import time
-from collections import defaultdict, deque
+from collections import defaultdict, deque, OrderedDict
 from fastapi import HTTPException, status
 
 
 class RateLimiter:
+    # Max number of unique user-ids/IPs tracked in memory at once.
+    # Beyond this, the oldest entry is evicted (LRU).
+    _MAX_BUCKETS = 10_000
+
     def __init__(self, max_requests: int, window_seconds: int):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self._buckets: dict[str, deque] = defaultdict(deque)
+        # Use OrderedDict so we can do O(1) LRU eviction
+        self._buckets: OrderedDict[str, deque] = OrderedDict()
+
+    def _get_bucket(self, user_id: str) -> deque:
+        if user_id in self._buckets:
+            self._buckets.move_to_end(user_id)   # Mark as recently used
+            return self._buckets[user_id]
+
+        # Create new bucket — evict oldest if at cap
+        if len(self._buckets) >= self._MAX_BUCKETS:
+            self._buckets.popitem(last=False)
+
+        bucket: deque = deque()
+        self._buckets[user_id] = bucket
+        return bucket
 
     def is_allowed(self, user_id: str) -> tuple[bool, int]:
         now = time.monotonic()
         window_start = now - self.window_seconds
-        bucket = self._buckets[user_id]
+        bucket = self._get_bucket(user_id)
+
+        # Purge expired timestamps
         while bucket and bucket[0] < window_start:
             bucket.popleft()
+
         if len(bucket) >= self.max_requests:
             retry_after = int(bucket[0] + self.window_seconds - now) + 1
             return False, retry_after
+
         bucket.append(now)
         return True, 0
     

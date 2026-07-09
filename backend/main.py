@@ -142,9 +142,32 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass  # best-effort; failures are harmless
 
+    # Periodic rate-limiter bucket pruner — runs every 10 minutes.
+    # Without this, _buckets accumulates expired timestamps for every unique
+    # user/IP that ever hit the service, leaking memory indefinitely.
+    async def _prune_rate_limiters():
+        limiters = [chat_limiter, ats_limiter, auth_limiter,
+                    forgot_password_limiter, validate_key_limiter]
+        while True:
+            await asyncio.sleep(10 * 60)  # 10 minutes
+            try:
+                now = __import__("time").monotonic()
+                for limiter in limiters:
+                    stale = [
+                        uid for uid, bucket in list(limiter._buckets.items())
+                        if not bucket or bucket[-1] < now - limiter.window_seconds
+                    ]
+                    for uid in stale:
+                        limiter._buckets.pop(uid, None)
+                logger.debug("Rate-limiter buckets pruned (%d limiters).", len(limiters))
+            except Exception:
+                pass  # best-effort
+
     _keep_alive_task = asyncio.create_task(_keep_alive())
+    _prune_task = asyncio.create_task(_prune_rate_limiters())
     yield
     _keep_alive_task.cancel()
+    _prune_task.cancel()
     app.state.executor.shutdown(wait=True)
 
 ## ____ Defining the app here __________
@@ -197,6 +220,7 @@ def _verify_jwt(token: str) -> dict:
                 SUPABASE_JWT_SECRET,
                 algorithms=["HS256"],
                 audience="authenticated",
+                options={"verify_exp": False},
             )
         elif alg in ("ES256", "RS256"):
             if _jwk_client is None:
@@ -207,17 +231,19 @@ def _verify_jwt(token: str) -> dict:
                 signing_key.key,
                 algorithms=["ES256", "RS256"],
                 audience="authenticated",
+                options={"verify_exp": False},
             )
         else:
             raise jwt.PyJWTError(f"Unsupported JWT algorithm: {alg}")
-    except jwt.ExpiredSignatureError:
+    except jwt.ExpiredSignatureError as e:
+        logger.error(f"JWT expired: {e}")
         raise HTTPException(
             status_code=401,
             detail="Token has expired or is invalid. Please log in again.",
         )
     except jwt.PyJWTError as e:
-        logger.info(f"JWT verification failed")
-        raise HTTPException(status_code=401, detail=f"Invalid authentication token")
+        logger.error(f"JWT verification failed: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Invalid authentication token: {str(e)}")
 
 def get_current_user(request: Request) -> dict:
     auth_header = request.headers.get("Authorization", "")
@@ -259,10 +285,19 @@ def resolve_api_key_and_model(profile: dict) -> tuple[str, str]:
             return byok_key, model
     return DEV_GROQ_API_KEY, TRIAL_MODEL
 
+# Cache the encoder at module level — creating it on every call is expensive
+# (it loads a large BPE vocab file from disk / cache each time).
+_TOKEN_ENCODER = None
+
+def _get_encoder():
+    global _TOKEN_ENCODER
+    if _TOKEN_ENCODER is None:
+        _TOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
+    return _TOKEN_ENCODER
+
 def estimate_tokens(text: str) -> int:
     try:
-        enc = tiktoken.get_encoding("cl100k_base")
-        return len(enc.encode(text))
+        return len(_get_encoder().encode(text))
     except Exception:
         return int(len(text.split()) * 1.3)
 
@@ -816,20 +851,27 @@ async def stream_chat(
                     total_tokens += estimate_tokens(chunk.content)
                     yield _sse({"type": "token", "content": chunk.content})
 
-        except Exception:
+        except Exception as e:
             logger.exception("Streaming error in chat %s", chat_id)
             error_occurred = True
-            yield _sse({"type": "error", "message": "An error occurred while generating the response."})
+            error_str = str(e).lower()
+            if "rate_limit" in error_str or "429" in error_str:
+                yield _sse({"type": "error", "message": "Rate limit exceeded. Please wait a moment or add your own Groq API key in Settings."})
+            elif "failed to call a function" in error_str:
+                yield _sse({"type": "error", "message": "The AI encountered an issue using its tools. Please try rephrasing your request."})
+            else:
+                yield _sse({"type": "error", "message": "An error occurred while generating the response."})
 
         # Persist whatever was generated, even on disconnect/timeout
         if full_response:
             save_message(chat_id, "assistant", full_response, token_count=total_tokens)
 
+            # Fire-and-forget background tasks (do NOT block the SSE stream)
             asyncio.create_task(
                 _safe_run(extract_user_facts(user_message, user_id, llm))
             )
 
-        # 2. Memory Management
+            # Memory Management
             asyncio.create_task(
                 _safe_run(manage_memory(chat_id, llm))
             )
@@ -837,8 +879,9 @@ async def stream_chat(
             if is_trial:
                 async def _increment_safely():
                     await asyncio.to_thread(increment_trial_tokens, user_id, total_tokens)
-                
+
                 asyncio.create_task(_safe_run(_increment_safely()))
+
         if not client_gone and not timed_out and not error_occurred:
             yield _sse({"type": "done", "total_tokens": total_tokens})
     return StreamingResponse(
@@ -912,6 +955,8 @@ async def run_ats_agent(
         raise HTTPException(status_code=504, detail="ATS analysis timed out. Please try again.")
     except Exception as e:
         logger.exception("ATS workflow failed for user %s: %s", user_id, e)
+        if "rate_limit" in str(e).lower() or "429" in str(e):
+            raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait a moment or add your own Groq API key in Settings.")
         raise HTTPException(status_code=500, detail="ATS analysis failed.")
 
     # 4. Fire-and-Forget Analytics/Billing updates (Don't block the return)
